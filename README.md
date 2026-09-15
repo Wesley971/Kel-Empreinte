@@ -13,7 +13,7 @@ HTML du lookbook est régénéré à chaque déploiement depuis `data/products.j
 | `catalog.js` | règles de présentation partagées navigateur / build : prix, lien WhatsApp, rendu des cartes |
 | `build.js` | script de build : régénère le lookbook depuis le JSON, échoue si les données sont incohérentes |
 | `data/products.json` | **source de vérité du catalogue**, éditée via `/admin` |
-| `admin/` | Sveltia CMS (`config.yml` = schéma des fiches) |
+| `admin/` | Sveltia CMS (`config.yml` = schéma des fiches ; `manifest.webmanifest` + `icon-*.png` = nom « Mes bijoux » et icône du raccourci « écran d'accueil » sur téléphone, à garder devant le script Sveltia qui injecte son propre manifest) |
 | `images/` | photos (les uploads du CMS arrivent ici) |
 | `.node-version` | version de Node utilisée par le build Cloudflare |
 
