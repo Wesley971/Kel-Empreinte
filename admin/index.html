@@ -7,9 +7,53 @@
   <!-- Nom et icône du raccourci « écran d'accueil » (Android). Sveltia injecte son propre manifest
        (« Sveltia CMS ») en fin de <head> à l'exécution : Chrome retient le premier, celui-ci doit rester devant. -->
   <link rel="manifest" href="manifest.webmanifest" />
+  <style>
+    /* Habillage autour de Sveltia : un en-tête Kel'Empreinte, puis le CMS monté dans #nc-root.
+       Sveltia n'accepte aucune personnalisation de ses couleurs : tout ce qui est « à nous » vit ici,
+       rien ne cible ses classes internes (version non épinglée). Dans un élément de montage, Sveltia
+       pose son interface en position absolute / inset 0 : le conteneur doit donc avoir une hauteur
+       réelle, d'où la colonne flex qui occupe tout l'écran. */
+    html { height: 100%; }
+    body {
+      margin: 0;
+      height: 100vh;  /* repli */
+      height: 100dvh; /* suit la barre d'adresse mobile quand elle se rétracte */
+      display: flex;
+      flex-direction: column;
+      background: #FCFAF8;
+      color: #1A1714;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    .kel-header {
+      flex: none;
+      padding: 10px 16px 9px;
+      border-top: 3px solid #D05830;    /* terracotta du logo */
+      border-bottom: 1px solid #EDE6DD;
+    }
+    .kel-header-row { display: flex; align-items: center; gap: 12px; }
+    .kel-header-logo { width: 36px; height: 36px; flex: none; }
+    .kel-header-title { margin: 0; font-size: 17px; font-weight: 600; }
+    .kel-header-nav { margin-left: auto; display: flex; gap: 16px; font-size: 14px; white-space: nowrap; }
+    .kel-header-nav a { color: #B84A26; font-weight: 500; text-decoration: none; }  /* terracotta assombri : contraste AA sur crème */
+    .kel-header-nav a:hover, .kel-header-nav a:focus-visible { text-decoration: underline; }
+    .kel-header-help { margin: 6px 0 0; font-size: 13px; line-height: 1.4; color: #6C6459; }
+    #nc-root { flex: 1 1 auto; min-height: 0; position: relative; }
+  </style>
 </head>
 <body>
-  <!-- Sveltia CMS charge sa propre interface ici. Rien d'autre à écrire dans ce fichier. -->
+  <header class="kel-header">
+    <div class="kel-header-row">
+      <img class="kel-header-logo" src="logo.png" alt="" width="36" height="36">
+      <p class="kel-header-title">Mes bijoux</p>
+      <nav class="kel-header-nav" aria-label="Liens utiles">
+        <a href="guide.html" target="_blank" rel="noopener">Guide</a>
+        <a href="/" target="_blank" rel="noopener">Voir le site ↗</a>
+      </nav>
+    </div>
+    <p class="kel-header-help">Chaque enregistrement met le site à jour en une minute environ. Un doute ? Ouvre le guide.</p>
+  </header>
+  <!-- Sveltia CMS détecte cet élément et y monte son interface (au lieu de <body>). -->
+  <div id="nc-root"></div>
   <script src="https://unpkg.com/@sveltia/cms/dist/sveltia-cms.js"></script>
 </body>
 </html>

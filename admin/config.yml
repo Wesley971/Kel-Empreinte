@@ -4,6 +4,13 @@ backend:
   branch: master
   base_url: "https://sveltia-cms-auth.abdoulwes.workers.dev"
 
+# Habillage Sveltia : titre de l'interface et logo (connexion, en-tête, favicon).
+# Les couleurs de l'interface ne sont pas personnalisables (limite Sveltia).
+app_title: "Mes bijoux — Kel'Empreinte"
+logo:
+  src: /admin/logo.png
+  show_in_header: true
+
 media_folder: "images"
 public_folder: "images"
 
