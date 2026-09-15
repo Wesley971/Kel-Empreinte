@@ -33,13 +33,14 @@ collections:
                 name: "id"
                 widget: "string"
                 required: true
-                hint: "Ne pas modifier après création (utilisé en interne, sans effet visible)."
+                hint: "Mot-clé unique pour cette pièce, en minuscules, sans espace ni accent, ex. \"boucles-fleur-rose\". Invisible sur le site ; ne plus le changer une fois la pièce créée."
                 pattern: ["^[a-z0-9-]+$", "Lettres minuscules, chiffres et tirets uniquement"]
 
               - label: "Nom"
                 name: "name"
                 widget: "string"
                 required: true
+                hint: "Nom affiché sur la carte de la pièce, ex. \"Herbier Jaune Velours\"."
 
               - label: "Catégorie"
                 name: "category"
@@ -59,6 +60,7 @@ collections:
                 options:
                   - { label: "Disponible", value: "disponible" }
                   - { label: "Bientôt (pas encore de photo)", value: "bientot" }
+                hint: "Attention : une pièce \"Disponible\" sans photo (champ \"Photos\" plus bas) s'affiche quand même en \"Bientôt\" sur le site, sans prix ni bouton Commander. Pour qu'elle soit vraiment en vente, ajoute au moins une photo."
 
               - label: "Personnalisable"
                 name: "customizable"
@@ -103,7 +105,7 @@ collections:
                 widget: "boolean"
                 required: false
                 default: true
-                hint: "Décoche si ce prix est encore provisoire."
+                hint: "Repère pour toi : décoche si ce prix est encore provisoire. Sans effet sur le site : le prix s'affiche que cette case soit cochée ou non."
 
               - label: "Photos"
                 name: "images"
@@ -111,16 +113,17 @@ collections:
                 required: false
                 label_singular: "Photo"
                 summary: "{{fields.alt}}"
+                hint: "La première photo est celle affichée sur la carte. Sans photo, la pièce apparaît en \"Bientôt\" sur le site, même si elle est marquée \"Disponible\"."
                 fields:
                   - { label: "Image", name: "src", widget: "image" }
-                  - { label: "Description de l'image (accessibilité)", name: "alt", widget: "string", required: true }
+                  - { label: "Description de l'image (accessibilité)", name: "alt", widget: "string", required: true, hint: "Décris la photo en quelques mots, ex. \"Boucles d'oreilles Herbier Jaune Velours, fleurs séchées dans la résine\". Lue à voix haute par les lecteurs d'écran et utilisée par Google." }
 
               - label: "Mettre en avant (carrousel page d'accueil)"
                 name: "featured"
                 widget: "boolean"
                 required: false
                 default: false
-                hint: "3 pièces recommandées pour le carrousel d'accueil. Si coché, remplir aussi les champs ci-dessous."
+                hint: "Si coché, cette pièce apparaît aussi dans le grand carrousel en haut de la page d'accueil (3 pièces recommandées). Remplir alors aussi les champs ci-dessous : sans titre et nom complet, elle n'y apparaît pas."
 
               - label: "Ordre dans le carrousel (1, 2, 3…)"
                 name: "featuredOrder"
@@ -140,7 +143,7 @@ collections:
                 name: "plainName"
                 widget: "string"
                 required: false
-                hint: "Uniquement si \"Mettre en avant\" est coché. Obligatoire dans ce cas, sinon la pièce n'apparaît pas dans le carrousel."
+                hint: "Uniquement si \"Mettre en avant\" est coché. Obligatoire dans ce cas, sinon la pièce n'apparaît pas dans le carrousel. C'est ce nom qui est inséré dans le message WhatsApp du bouton \"Commander\" du carrousel, ex. \"Boucles d'oreilles Herbier Jaune Velours\"."
 
               - label: "Badge"
                 name: "badge"
@@ -153,4 +156,4 @@ collections:
                 name: "specs"
                 widget: "text"
                 required: false
-                hint: "Uniquement si \"Mettre en avant\" est coché."
+                hint: "Uniquement si \"Mettre en avant\" est coché. Matières et finitions, ex. \"Fleurs séchées, résine, crochets en acier inoxydable\". Affichée sous la description dans le carrousel."
