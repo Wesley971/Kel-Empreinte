@@ -484,8 +484,29 @@ https://www.tooplate.com/view/2166-ivory-flow
     link.addEventListener('click', closeMobileNav);
   });
 
-  /* ── FAQ: accordion ── */
+  /* ── FAQ: centrage figé au repos ──
+     La section fait un écran ; centrer le bloc en flex le ferait remonter de la moitié
+     de chaque réponse ouverte (voir .faq dans le CSS). On mesure la marge libre bloc
+     fermé et on pose la moitié en --faq-offset : l'ouverture ne pousse plus que vers le bas. */
+  var faqSection = document.querySelector('.faq');
+  var faqInner = document.querySelector('.faq-inner');
   var faqItems = document.querySelectorAll('.faq-item');
+
+  function centerFaq() {
+    if (!faqSection || !faqInner) return;
+    if (faqSection.querySelector('.faq-item.is-open')) return; // la mesure doit être celle du bloc fermé
+    faqSection.style.setProperty('--faq-offset', '0px');      // sinon l'offset précédent fausse la mesure
+    var cs = getComputedStyle(faqSection);
+    var free = faqSection.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - faqInner.offsetHeight;
+    faqSection.style.setProperty('--faq-offset', Math.max(0, free / 2) + 'px');
+  }
+
+  centerFaq();
+  window.addEventListener('load', centerFaq);
+  window.addEventListener('resize', centerFaq);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(centerFaq); // le swap Fraunces change la hauteur du bloc
+
+  /* ── FAQ: accordion ── */
   faqItems.forEach(function(item) {
     var trigger = item.querySelector('.faq-trigger');
     var panel = item.querySelector('.faq-panel');
@@ -494,6 +515,11 @@ https://www.tooplate.com/view/2166-ivory-flow
       var open = item.classList.toggle('is-open');
       trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
       panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+    });
+    // Rattrape un redimensionnement survenu panneau ouvert : recalcul une fois le panneau
+    // refermé (fin de transition, pas au clic, sinon la mesure inclurait le panneau en cours de fermeture)
+    panel.addEventListener('transitionend', function(e) {
+      if (e.propertyName === 'grid-template-rows' && !item.classList.contains('is-open')) centerFaq();
     });
   });
 
