@@ -96,7 +96,12 @@ pas le bloc *Build › Build variables* : une variable de build n'existe pas à 
 faite sur le Worker `sveltia-cms-auth`). **Production et Preview se configurent séparément** : une
 variable posée sur un seul des deux laisse l'autre environnement en 503. Un secret doit exister
 **avant** le déploiement qui l'utilise ; s'il est ajouté après, relancer le dernier déploiement
-(*Retry deployment*).
+(*Retry deployment*) — celui de l'environnement concerné, la liste mêle Production et Preview.
+Après toute modification dans ce panneau, **recharger la page et relire la liste** avant de
+relancer un déploiement : lors de la mise en place (16/09/2026), une suppression puis un ajout ont
+paru enregistrés sans l'être, et le symptôme — `/api/health` en 503 — est le même qu'une panne
+réelle. Seule la ligne `health : …` des logs du déploiement (*Functions › Begin log stream*) dit
+laquelle des causes est en jeu.
 
 | Variable | Type | Environnements | Rôle |
 |---|---|---|---|
