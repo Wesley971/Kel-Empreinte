@@ -1150,14 +1150,32 @@ img { display: block; max-width: 100%; height: auto; }
 }
 
 .faq-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 40px;
+  --faq-gap: 40px;
+  display: flex;
+  gap: var(--faq-gap);
+}
+
+/* Colonne autonome : dans une grille 2×2, les deux colonnes partagent leurs lignes et
+   l'ouverture d'une réponse pousse aussi la question d'à côté. Ici chaque colonne empile
+   ses questions pour elle seule — une ouverture ne déplace que la question juste en dessous
+   dans la même colonne, jamais l'autre colonne, jamais latéralement. */
+.faq-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--faq-gap);
 }
 
 .faq-item {
   padding-top: 28px;
   border-top: 1px solid var(--oat-deep);
+  /* Hauteur de deux lignes de question réservée en bas de l'item (28px de padding + 1px de
+     bordure + 2 × 1.3 × 19px) : sans elle, une question sur une ligne et sa voisine sur deux
+     décaleraient la deuxième rangée des colonnes. La réserve est invisible au repos, couverte
+     dès qu'un panneau s'ouvre. Tient jusqu'à deux lignes de question — environ 85 caractères
+     sur grand écran, moins vers 800px de fenêtre ; au-delà, la deuxième rangée se désaligne. */
+  min-height: calc(28px + 1px + 2 * 1.3 * 19px);
 }
 
 .faq-trigger {
@@ -1591,7 +1609,13 @@ body.is-scroll-locked {
   .reviews { padding: 48px 24px; }
 
   .faq { padding: 60px 24px; }
-  .faq-grid { grid-template-columns: 1fr; gap: 36px; }
+  /* Une seule colonne : les deux conteneurs s'empilent, plus rien à réserver ni à aligner.
+     flex: none annule le partage de largeur (flex: 1 1 0) devenu partage de hauteur une fois
+     l'axe vertical — sans effet visible ici, mais flex-basis: 0 en colonne ne veut plus dire
+     la même chose et n'a aucune raison d'être conservé. */
+  .faq-grid { --faq-gap: 36px; flex-direction: column; }
+  .faq-col { flex: none; }
+  .faq-item { min-height: 0; }
 
   .signature-content { padding: 24px; }
   .signature-bg-logo { font-size: 80px; }
