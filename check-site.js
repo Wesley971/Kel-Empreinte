@@ -14,6 +14,11 @@
    déclenche déjà la notification Cloudflare. Deux alertes pour un même incident useraient
    la confiance qu'on leur accorde.
 
+   Depuis KD-91 elle pose aussi une seconde question, de même nature (« ce qui est servi est-il
+   ce qu'on croit ? ») : l'espace de gestion et son API sont-ils toujours derrière Cloudflare
+   Access ? Une protection qui disparaît ne casse rien de visible — le site répond, l'espace
+   s'affiche —, elle rend juste l'espace public. Rien d'autre ne le remarquerait.
+
    Sortie 1 = alerte (e-mail GitHub). Aucune dépendance : Node natif uniquement. */
 
 'use strict';
@@ -30,6 +35,10 @@ var CARDS_START = '<!-- build:lookbook-cards:start';
 var CARDS_END = '<!-- build:lookbook-cards:end -->';
 // Point de montage de Sveltia dans admin/index.html : preuve que c'est bien le CMS qui est servi.
 var ADMIN_MARKER = 'id="nc-root"';
+// Chemins que Cloudflare Access doit protéger (KD-91) : sans session, la bordure répond une
+// redirection vers la page de connexion de l'équipe, avant même que Pages ne serve quoi que ce soit.
+var PROTECTED_PATHS = ['gestion/', 'api/admin/'];
+var ACCESS_LOGIN_HOST = '.cloudflareaccess.com';
 
 // Un déploiement Cloudflare prend 1 à 2 min, davantage si un build attend son tour (un seul
 // build à la fois sur le plan gratuit). Tant que le dernier commit est récent, un écart entre
@@ -85,38 +94,75 @@ function lastCommitAgeMs() {
 
 /* ── Ce que le site sert ── */
 
+// Un appel, borné par un minuteur explicite plutôt qu'AbortSignal.timeout : il faut pouvoir
+// l'éteindre dès la lecture finie, sinon il reste armé et Node plante en sortie quand la sonde
+// s'arrête sur une alerte. Le corps est toujours lu, sous le même minuteur : un serveur qui envoie
+// ses en-têtes puis se tait ferait pendre la sonde autrement, et un corps jamais consommé laisse
+// une connexion ouverte — le cas exact où Node plante en sortie.
+async function fetchOnce(url, redirect) {
+  var controller = new AbortController();
+  var timer = setTimeout(function() { controller.abort(); }, FETCH_TIMEOUT_MS);
+  try {
+    var response = await fetch(url, {
+      redirect: redirect,
+      signal: controller.signal,
+      headers: { 'User-Agent': 'kel-empreinte-check-site' }
+    });
+    return { response: response, body: await response.text() };
+  } catch (err) {
+    throw new Error(err.name === 'AbortError' ? 'aucune réponse après ' + (FETCH_TIMEOUT_MS / 1000) + ' s' : err.message);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function get(url, what) {
   var why = '';
   // Une coupure réseau d'une seconde ne doit réveiller personne : un seul nouvel essai, puis on conclut.
   for (var attempt = 1; attempt <= 2; attempt++) {
     if (attempt > 1) await wait(RETRY_NETWORK_MS);
-    // Minuteur explicite plutôt qu'AbortSignal.timeout : il faut pouvoir l'éteindre dès la réponse
-    // lue, sinon il reste armé et Node plante en sortie quand la sonde s'arrête sur une alerte.
-    var controller = new AbortController();
-    var timer = setTimeout(function() { controller.abort(); }, FETCH_TIMEOUT_MS);
     try {
-      var response = await fetch(url, {
-        redirect: 'follow',
-        signal: controller.signal,
-        headers: { 'User-Agent': 'kel-empreinte-check-site' }
-      });
-      if (!response.ok) {
-        why = 'HTTP ' + response.status;
+      var result = await fetchOnce(url, 'follow');
+      if (!result.response.ok) {
+        why = 'HTTP ' + result.response.status;
         continue;
       }
-      var body = await response.text();
-      if (!body.trim()) {
+      if (!result.body.trim()) {
         why = 'réponse vide';
         continue;
       }
-      return body;
+      return result.body;
     } catch (err) {
-      why = err.name === 'AbortError' ? 'aucune réponse après ' + (FETCH_TIMEOUT_MS / 1000) + ' s' : err.message;
-    } finally {
-      clearTimeout(timer);
+      why = err.message;
     }
   }
   fail(what + ' — ' + url + ' : ' + why);
+}
+
+// Sans session Access, un chemin protégé répond une redirection vers *.cloudflareaccess.com. Tout
+// autre résultat — en premier lieu un 200 — veut dire que la protection a disparu (application
+// supprimée ou chemin retouché dans Zero Trust) et que l'espace de gestion est public. Le middleware
+// des Functions refuserait encore les écritures ; l'écran, lui, serait visible. Ici on ne suit pas
+// la redirection : c'est elle qu'on veut voir, et on ne réessaie qu'une panne réseau, jamais une
+// réponse lue — un 200 n'est pas un accident de réseau.
+async function expectAccessRedirect(url) {
+  var why = '';
+  for (var attempt = 1; attempt <= 2; attempt++) {
+    if (attempt > 1) await wait(RETRY_NETWORK_MS);
+    var response;
+    try {
+      response = (await fetchOnce(url, 'manual')).response;
+    } catch (err) {
+      why = err.message;
+      continue;
+    }
+    var location = response.headers.get('location') || '';
+    if (response.status >= 300 && response.status < 400 && location.indexOf(ACCESS_LOGIN_HOST) !== -1) return;
+    fail('espace de gestion sans protection Access — ' + url + ' : HTTP ' + response.status +
+      (location ? ' vers ' + location : '') + ' au lieu d\'une redirection vers *' + ACCESS_LOGIN_HOST +
+      '. Vérifier l\'application dans Zero Trust › Applications (voir README › Espace de gestion).');
+  }
+  fail('espace de gestion injoignable — ' + url + ' : ' + why);
 }
 
 // Le lookbook servi doit contenir les marqueurs de build.js : sans eux, la page est en ligne
@@ -160,8 +206,10 @@ async function main() {
   var base = urlAt === -1 ? DEFAULT_URL : args[urlAt + 1];
   if (!base) fail('option --url sans valeur');
   // On sonde exactement l'URL demandée : c'est ce qui permet de provoquer un échec sur commande
-  // en visant un chemin qui ne rend pas le lookbook. La barre finale ne sert qu'à en dériver le CMS.
-  var adminUrl = (base.slice(-1) === '/' ? base : base + '/') + 'admin/';
+  // en visant un chemin qui ne rend pas le lookbook. La barre finale ne sert qu'à en dériver le CMS
+  // et les chemins protégés.
+  var root = base.slice(-1) === '/' ? base : base + '/';
+  var adminUrl = root + 'admin/';
 
   var expected = expectedCount();
   var site = await readSite(base, expected);
@@ -192,11 +240,17 @@ async function main() {
     fail('page servie à la place du CMS — ' + adminUrl + ' : « ' + ADMIN_MARKER + ' » absent (Cloudflare sert la page d\'accueil pour un chemin inconnu)');
   }
 
+  // L'espace de gestion et son API (KD-91) doivent rester derrière Cloudflare Access.
+  for (var i = 0; i < PROTECTED_PATHS.length; i++) {
+    await expectAccessRedirect(root + PROTECTED_PATHS[i]);
+  }
+  var protectedNote = '/' + PROTECTED_PATHS.join(' et /') + ' protégés';
+
   // Le mot de la fin dit ce qui a vraiment été mesuré : un écart toléré reste un écart.
   if (site.matches) {
-    log('site conforme au dépôt — ' + base + ' : ' + site.cards + ' cartes servies pour ' + expected + ' pièces, /admin/ joignable');
+    log('site conforme au dépôt — ' + base + ' : ' + site.cards + ' cartes servies pour ' + expected + ' pièces, /admin/ joignable, ' + protectedNote);
   } else {
-    log('écart toléré — ' + base + ' : ' + site.cards + ' cartes servies pour ' + expected + ' pièces, /admin/ joignable. À revérifier au prochain passage.');
+    log('écart toléré — ' + base + ' : ' + site.cards + ' cartes servies pour ' + expected + ' pièces, /admin/ joignable, ' + protectedNote + '. À revérifier au prochain passage.');
   }
 }
 
