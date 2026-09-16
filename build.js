@@ -23,6 +23,7 @@ var catalog = require('./catalog.js');
 var ROOT = __dirname;
 var PRODUCTS_FILE = path.join(ROOT, 'data', 'products.json');
 var INDEX_FILE = path.join(ROOT, 'index.html');
+var BUILD_INFO_FILE = path.join(ROOT, 'functions', '_lib', 'build-info.js');
 
 // Les états vivent dans catalog.js, partagé avec l'écran de gestion et l'API : une valeur
 // acceptée ici est une valeur que le site sait afficher.
@@ -173,3 +174,31 @@ var soon = products.filter(function(product) { return !catalog.isSold(product) &
 console.log('build.js : lookbook — ' + products.length + ' cartes générées (' +
   (products.length - soon - sold) + ' disponibles, ' + soon + ' bientôt, ' + sold + ' vendues)' +
   (output === html ? ', index.html déjà à jour' : ', index.html mis à jour'));
+
+/* ── Branche du déploiement, pour les Functions ── */
+
+// Cloudflare n'expose la branche qu'au build (CF_PAGES_BRANCH) ; les Functions en ont besoin
+// à l'exécution pour écrire le catalogue sur la branche qu'elles servent — la production sur
+// master, une preview sur la sienne. Écrit uniquement sur Pages (CF_PAGES=1) : en local le
+// fichier commité (branche inconnue) reste tel quel, et aucune branche codée en dur ne peut
+// se glisser dans un commit. Pages compile functions/ après la commande de build.
+if (process.env.CF_PAGES === '1') {
+  var info = {
+    branch: process.env.CF_PAGES_BRANCH || null,
+    commit: process.env.CF_PAGES_COMMIT_SHA || null
+  };
+  try {
+    fs.writeFileSync(BUILD_INFO_FILE,
+      '/* Généré par build.js au déploiement Cloudflare Pages — ne pas modifier à la main. */\n' +
+      'export const buildInfo = ' + JSON.stringify(info, null, 2) + ';\n', 'utf8');
+  } catch (err) {
+    fail('impossible d\'écrire ' + BUILD_INFO_FILE + ' (' + err.message + ')');
+  }
+  // Branche absente : le site se déploie quand même, seules les écritures de l'espace de
+  // gestion sont refusées (github.js) — le site public ne dépend pas de cette information.
+  if (info.branch) {
+    console.log('build.js : build-info — branche ' + info.branch + ', commit ' + String(info.commit).slice(0, 7));
+  } else {
+    console.warn('build.js : CF_PAGES_BRANCH absent — les Functions refuseront d\'écrire sur ce déploiement');
+  }
+}

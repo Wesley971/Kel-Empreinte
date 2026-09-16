@@ -6,14 +6,22 @@
    Cloudflare (Settings › Variables and Secrets, type Secret), jamais une variable de
    Build, jamais envoyée au navigateur.
 
-   Le repo et la branche ont une valeur par défaut : une seule variable à configurer
-   pour que la brique fonctionne. GITHUB_REPO / GITHUB_BRANCH permettent de viser un
-   autre dépôt (fork, test) sans toucher au code.
+   Le repo a une valeur par défaut : une seule variable à configurer pour que la brique
+   fonctionne. GITHUB_REPO permet de viser un autre dépôt (fork, test) sans toucher au code.
+
+   La branche n'est pas configurable : c'est celle du déploiement qui exécute la Function
+   (functions/_lib/build-info.js, écrit par build.js pendant le build Cloudflare). La
+   production écrit sur master, une preview sur sa propre branche — et une preview dont la
+   branche a été supprimée échoue proprement au lieu d'écrire ailleurs. Branche inconnue
+   (exécution hors Pages) : lecture sur master, écriture refusée. On ne devine jamais où
+   publier.
 
    Le piège de ce fichier est l'encodage : l'API échange les contenus en base64, et
    atob/btoa ne connaissent que le Latin-1. Un « é » passé à btoa lève une exception,
    un « ç » lu via atob seul devient deux caractères parasites. Tout passe donc par des
    octets UTF-8 (TextEncoder/TextDecoder), et le round-trip est couvert par un test. */
+
+import { buildInfo } from './build-info.js';
 
 const API_URL = 'https://api.github.com';
 const API_VERSION = '2022-11-28';
@@ -21,7 +29,13 @@ const API_VERSION = '2022-11-28';
 const USER_AGENT = 'kel-empreinte-pages-functions';
 
 const DEFAULT_REPO = 'Wesley971/Kel-Empreinte';
-const DEFAULT_BRANCH = 'master';
+// Branche de lecture quand celle du déploiement est inconnue (jamais utilisée pour écrire).
+const READ_FALLBACK_BRANCH = 'master';
+
+// Signature des commits écrits par l'espace de gestion. Le dépôt est public : jamais
+// d'adresse personnelle. L'adresse « noreply » GitHub du propriétaire du token relie le
+// commit à son compte sans rien exposer — c'est déjà celle des commits de l'ancien CMS.
+const COMMIT_IDENTITY = { name: 'Wesley Abdoul', email: '142779515+Wesley971@users.noreply.github.com' };
 
 export class GitHubError extends Error {
   constructor(status, message) {
@@ -40,8 +54,16 @@ export function repoConfig(env) {
   return {
     token: env.GITHUB_TOKEN,
     repo: env.GITHUB_REPO || DEFAULT_REPO,
-    branch: env.GITHUB_BRANCH || DEFAULT_BRANCH,
+    // null hors Pages : voir build-info.js
+    branch: buildInfo.branch || null,
   };
+}
+
+// La branche sur laquelle ce déploiement écrirait — exposée par l'API de gestion pour
+// vérifier, avant la première écriture, qu'une preview vise bien sa branche et la
+// production master.
+export function deploymentBranch() {
+  return buildInfo.branch || null;
 }
 
 async function githubFetch(config, path, init = {}) {
@@ -75,7 +97,8 @@ function contentsPath(config, filePath) {
 // concurrente — la même pièce éditée depuis Sveltia et depuis le nouvel espace).
 export async function readRepoFile(env, filePath) {
   const config = repoConfig(env);
-  const file = await githubFetch(config, contentsPath(config, filePath) + '?ref=' + encodeURIComponent(config.branch));
+  const ref = config.branch || READ_FALLBACK_BRANCH;
+  const file = await githubFetch(config, contentsPath(config, filePath) + '?ref=' + encodeURIComponent(ref));
   if (file.type !== 'file' || typeof file.content !== 'string') {
     throw new GitHubError(0, filePath + ' : la réponse GitHub ne contient pas un fichier (' + (file.type || 'type inconnu') + ')');
   }
@@ -87,14 +110,20 @@ export async function readRepoFile(env, filePath) {
 // qui encode des octets, pas une chaîne.
 // `sha` : celui renvoyé par readRepoFile pour une mise à jour ; omis pour une création.
 // Sans le bon sha, GitHub répond 409 : c'est voulu, on ne veut jamais écraser à l'aveugle.
+// Une branche supprimée (preview survivant à son merge) donne un 404 GitHub : rien n'est écrit.
 export async function writeRepoFile(env, filePath, { content, sha, message }) {
   const config = repoConfig(env);
+  if (!config.branch) {
+    throw new GitHubError(0, 'branche du déploiement inconnue (build-info.js non généré) : écriture refusée');
+  }
   const result = await githubFetch(config, contentsPath(config, filePath), {
     method: 'PUT',
     body: JSON.stringify({
       message,
       content: encodeBase64Utf8(content),
       branch: config.branch,
+      committer: COMMIT_IDENTITY,
+      author: COMMIT_IDENTITY,
       ...(sha ? { sha } : {}),
     }),
   });

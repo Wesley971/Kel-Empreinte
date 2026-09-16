@@ -26,3 +26,9 @@ export function json(data, status = 200, headers = {}) {
 export function error(status, message) {
   return json({ error: message }, status);
 }
+
+// Une route qui existe mais pas pour cette méthode : 405 plutôt que le 404 du fourre-tout,
+// pour qu'un appel mal formé se diagnostique en une lecture.
+export function methodNotAllowed(allowed) {
+  return json({ error: 'Méthode non autorisée.' }, 405, { Allow: allowed.join(', ') });
+}

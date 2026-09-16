@@ -1,0 +1,70 @@
+/* Le catalogue vu des Functions — lire data/products.json sur GitHub, le modifier, le réécrire.
+
+   Le fichier est la source de vérité du site et il est relu par des humains dans l'historique
+   git : une écriture ne doit changer que ce qu'on a voulu changer. JSON.stringify(…, null, 2)
+   reproduit l'indentation et l'ordre des clés, mais transforme les espaces insécables écrits
+   « \u00a0 » dans le fichier en caractères invisibles ; on les ré-échappe pour que le
+   round-trip lecture → écriture soit identique octet pour octet (couvert par un test sur le
+   vrai fichier). Toute autre normalisation (fichier indenté autrement à la main) se produira
+   une fois, au premier enregistrement, et sera visible dans le diff de ce commit.
+
+   Les règles d'état (quand une pièce peut passer « en vente ») viennent de catalog.js, le
+   module partagé avec le site et l'écran de gestion : même règle, écrite une fois. */
+
+import catalog from '../../catalog.js';
+import { error } from './http.js';
+import { GitHubError, readRepoFile, writeRepoFile } from './github.js';
+
+export const PRODUCTS_FILE = 'data/products.json';
+
+export const AVAILABILITIES = catalog.AVAILABILITIES;
+export const sortForDisplay = catalog.sortForDisplay;
+export const saleBlockers = catalog.saleBlockers;
+export const describeSaleBlockers = catalog.describeSaleBlockers;
+
+const NBSP = String.fromCharCode(0xa0); // le caractère lui-même, écrit ainsi pour rester visible
+const NBSP_ESCAPED = '\\u00a0';
+
+// SyntaxError dans les deux cas (JSON invalide, ou valide mais pas une liste) : pour
+// catalogFailure, c'est la même situation — le fichier du dépôt n'est pas lisible tel quel.
+export function parseProducts(content) {
+  const products = JSON.parse(content);
+  if (!Array.isArray(products)) throw new SyntaxError(PRODUCTS_FILE + ' : le contenu n\'est pas une liste de pièces');
+  return products;
+}
+
+// Fin de fichier : un seul saut de ligne, comme le fichier du dépôt (LF).
+export function serializeProducts(products) {
+  return JSON.stringify(products, null, 2).split(NBSP).join(NBSP_ESCAPED) + '\n';
+}
+
+export function findProduct(products, id) {
+  return products.find((product) => product && product.id === id) || null;
+}
+
+// Renvoie aussi le sha : indispensable pour réécrire sans écraser une modification faite
+// entre-temps (GitHub répond 409 si le sha n'est plus le bon).
+export async function loadProducts(env) {
+  const { content, sha } = await readRepoFile(env, PRODUCTS_FILE);
+  return { products: parseProducts(content), sha };
+}
+
+export async function saveProducts(env, products, { sha, message }) {
+  return writeRepoFile(env, PRODUCTS_FILE, { content: serializeProducts(products), sha, message });
+}
+
+// Traduit un échec de lecture ou d'écriture en réponse pour l'écran de gestion : une phrase
+// en français, orientée action (voir http.js). Le détail technique est déjà dans les logs
+// Cloudflare, écrit par la route avant d'appeler cette fonction.
+export function catalogFailure(err) {
+  if (err instanceof GitHubError) {
+    // status 0 : configuration (token absent, branche du déploiement inconnue)
+    if (err.status === 0) return error(503, "L'espace de gestion n'est pas configuré pour enregistrer depuis cet environnement.");
+    if (err.status === 401 || err.status === 403) return error(502, "GitHub refuse l'accès au catalogue — le jeton d'accès a peut-être expiré.");
+    if (err.status === 404) return error(502, 'Le catalogue est introuvable sur GitHub pour cet environnement (branche supprimée ?).');
+    if (err.status === 409) return error(409, 'Une autre modification vient d\'être enregistrée. Rechargez la page et réessayez.');
+    return error(502, "GitHub n'a pas pu enregistrer la modification. Réessayez dans un instant.");
+  }
+  if (err instanceof SyntaxError) return error(502, 'Le catalogue sur GitHub est illisible : vérifiez data/products.json.');
+  return error(502, 'GitHub ne répond pas. Réessayez dans un instant.');
+}
