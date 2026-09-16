@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Espace privé : jamais dans les résultats de recherche, même si un lien fuit. -->
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Espace de gestion — Kel'Empreinte</title>
+  <style>
+    /* Page provisoire de l'espace de gestion (KD-91). Elle existe pour une seule raison : donner
+       quelque chose à protéger derrière Cloudflare Access, et dire à la personne connectée qu'elle
+       est au bon endroit. KD-92 la remplace par l'écran « Mes bijoux ». Palette de KD-84 : crème
+       en base, terracotta du logo en accent ; polices système pour ne rien charger d'externe
+       derrière une page de connexion. */
+    html { height: 100%; }
+    body {
+      margin: 0;
+      min-height: 100vh;  /* repli */
+      min-height: 100dvh; /* suit la barre d'adresse mobile quand elle se rétracte */
+      display: flex;
+      flex-direction: column;
+      background: #FCFAF8;
+      color: #1A1714;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.5;
+    }
+    .kel-header {
+      flex: none;
+      padding: 10px 16px 9px;
+      border-top: 3px solid #D05830;    /* terracotta du logo */
+      border-bottom: 1px solid #EDE6DD;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .kel-header-logo { width: 36px; height: 36px; flex: none; object-fit: contain; }
+    .kel-header-title { margin: 0; font-size: 17px; font-weight: 600; }
+    .kel-header-nav { margin-left: auto; font-size: 14px; white-space: nowrap; }
+    .kel-header-nav a { color: #B84A26; font-weight: 500; text-decoration: none; }  /* terracotta assombri : contraste AA sur crème */
+    .kel-header-nav a:hover, .kel-header-nav a:focus-visible { text-decoration: underline; }
+    main {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+    .kel-card {
+      max-width: 28rem;
+      padding: 24px 20px;
+      background: #FFFFFF;
+      border: 1px solid #EDE6DD;
+      border-radius: 12px;
+    }
+    .kel-card h1 { margin: 0 0 12px; font-size: 22px; font-weight: 600; }
+    .kel-card p { margin: 0 0 12px; }
+    .kel-card p:last-child { margin-bottom: 0; color: #6C6459; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <header class="kel-header">
+    <img class="kel-header-logo" src="/images/logo/logo-kel-empreinte.png" alt="" width="36" height="36">
+    <p class="kel-header-title">Mes bijoux</p>
+    <nav class="kel-header-nav" aria-label="Liens utiles">
+      <a href="/" target="_blank" rel="noopener">Voir le site ↗</a>
+    </nav>
+  </header>
+  <main>
+    <section class="kel-card" aria-labelledby="titre">
+      <h1 id="titre">Connexion réussie, vous êtes au bon endroit.</h1>
+      <p>Cet espace vous permettra bientôt de gérer vos bijoux depuis votre téléphone : les ajouter, les marquer épuisés, les mettre en avant sur le site.</p>
+      <p>Il est encore en construction. Vous n'avez rien à faire pour l'instant.</p>
+    </section>
+  </main>
+</body>
+</html>
