@@ -18,6 +18,7 @@ HTML du lookbook est régénéré à chaque déploiement depuis `data/products.j
 | `data/products.json` | **source de vérité du catalogue**, éditée via `/admin` |
 | `admin/` | Sveltia CMS. `config.yml` = schéma des fiches + titre/logo de l'interface (`app_title`, `logo`) ; `index.html` = en-tête Kel'Empreinte au-dessus du CMS monté dans `#nc-root` (les couleurs de Sveltia elles-mêmes ne sont pas personnalisables) ; `guide.html` = guide « Gérer mes bijoux » pour Prescilia (`noindex`) ; `logo.png` = logo de connexion/favicon ; `manifest.webmanifest` + `icon-*.png` = nom « Mes bijoux » et icône du raccourci « écran d'accueil », à garder devant le script Sveltia qui injecte son propre manifest |
 | `images/` | photos (les uploads du CMS arrivent ici) |
+| `functions/` | Cloudflare Pages Functions : les routes `/api/*` (voir *Fonctions serverless*). `_lib/` = modules partagés (réponses JSON, accès GitHub, vérification du jeton Cloudflare Access) ; `api/` = les routes, une par fichier |
 | `.node-version` | version de Node utilisée par le build Cloudflare |
 
 ## Déploiement — Cloudflare Pages
@@ -70,6 +71,54 @@ ce qui se trouve entre les marqueurs — c'est écrasé au déploiement.
 dans `data/products.json` et `images/` sur `master`. Les champs et leurs règles sont décrits dans
 `admin/config.yml`.
 
+## Fonctions serverless — `/api`
+
+Le dossier `functions/` est compilé par Cloudflare Pages à chaque déploiement en un Worker qui
+répond sur `/api/*` (pas de `package.json`, pas de wrangler : Cloudflare détecte le dossier et
+génère le routage). Il n'est **pas** servi en statique, bien que l'output directory soit la racine
+(`functions` figure dans la liste d'exclusion de l'upload Pages). Le reste du site ne passe pas par
+ce Worker. Ce socle est partagé par le futur espace de gestion (`/api/admin/*`) et le paiement en
+ligne SumUp.
+
+| Route | Rôle |
+|---|---|
+| `GET /api/health` | preuve de vie : lit `data/products.json` sur GitHub avec le token et répond `{ ok, github, products }` (200) ou `{ ok: false }` (503). Publique, mise en cache 5 min (1 min en échec) pour ne pas consommer le quota GitHub. Ne révèle que le nombre de pièces et un état — le détail des erreurs est dans les logs Cloudflare (*Functions › Real-time logs*) |
+| `/api/admin/*` | routes d'écriture de l'espace de gestion (à venir). Protégées par `functions/api/admin/_middleware.js` : **503** tant que Cloudflare Access n'est pas configuré, **401** sans jeton Access valide. Fermé par défaut, sans exception |
+| tout autre `/api/*` | 404 JSON — au lieu de la page d'accueil en 200 que Pages sert pour un chemin inconnu |
+
+Toutes les réponses sont en JSON, `Cache-Control: no-store` sauf mention contraire, messages
+d'erreur en français prêts à être affichés dans l'espace de gestion.
+
+### Variables Runtime
+
+Dashboard Cloudflare › projet `kel-empreinte` › **Settings › Variables and Secrets** — et surtout
+pas le bloc *Build › Build variables* : une variable de build n'existe pas à l'exécution (erreur déjà
+faite sur le Worker `sveltia-cms-auth`). **Production et Preview se configurent séparément** : une
+variable posée sur un seul des deux laisse l'autre environnement en 503. Un secret doit exister
+**avant** le déploiement qui l'utilise ; s'il est ajouté après, relancer le dernier déploiement
+(*Retry deployment*).
+
+| Variable | Type | Environnements | Rôle |
+|---|---|---|---|
+| `GITHUB_TOKEN` | Secret | Production + Preview | token GitHub fine-grained, **Contents : Read and write** sur le seul dépôt `Wesley971/Kel-Empreinte`, aucune autre permission. Nom du token : `kel-empreinte-pages-functions`. **Il expire** : la date est suivie dans le ticket KD-94 (sonde à ajouter) — passé cette date, toute écriture de l'espace de gestion échoue et `/api/health` passe en 503 |
+| `GITHUB_REPO`, `GITHUB_BRANCH` | texte | facultatives | dépôt et branche visés ; par défaut `Wesley971/Kel-Empreinte` et `master`, codés dans `functions/_lib/github.js` |
+| `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | texte | Production + Preview | configuration Cloudflare Access de `/admin` et `/api/admin/*` : le team domain (`<équipe>.cloudflareaccess.com`, sans `https://`) et l'*Application Audience (AUD) Tag* de l'application Access. **À poser lors de la mise en place d'Access (KD-91)** ; tant qu'elles manquent, `/api/admin/*` répond 503 |
+
+Le middleware revérifie le jeton Access (`Cf-Access-Jwt-Assertion`, RS256, clés publiques du team
+domain, `aud` / `iss` / `exp`) même si Access a déjà filtré la requête à la bordure : si la policy
+Access est un jour mal réglée ou retirée, les routes d'écriture restent fermées.
+
+### Vérifier après un déploiement
+
+```
+curl -i https://kel-empreinte.pages.dev/api/health            # 200, "products" = nombre de pièces du JSON
+curl -i https://kel-empreinte.pages.dev/api/admin/quoi         # 503 (Access non configuré) ou 401
+curl -i https://kel-empreinte.pages.dev/api/nimporte           # 404 JSON
+curl -i https://kel-empreinte.pages.dev/functions/_lib/github.js   # du HTML (page d'accueil), jamais du JS
+```
+
+Sur une preview, remplacer l'hôte par `<branche>.kel-empreinte.pages.dev`.
+
 ## Surveillance
 
 Trois niveaux, trois responsabilités qui ne se recouvrent pas. Toutes les alertes vont au
@@ -118,3 +167,5 @@ d'un quart de ses pièces en un seul push, ou s'il passe sous 5 pièces.
 - La sonde s'appuie sur les marqueurs `<!-- build:lookbook-cards:… -->` et sur `class="lookbook-count"` :
   une refonte du lookbook qui les déplacerait la ferait échouer en boucle. Son message d'erreur le dit
   et nomme le fichier à corriger.
+- La sonde **n'interroge pas encore `/api/health`** : un token GitHub expiré ou révoqué (voir *Fonctions
+  serverless*) n'est signalé par aucun des trois niveaux aujourd'hui. C'est l'objet du ticket KD-94.
