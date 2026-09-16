@@ -106,7 +106,12 @@ d'un quart de ses pièces en un seul push, ou s'il passe sous 5 pièces.
   l'onglet *Actions*.
 - Les notifications d'un workflow planifié partent à la personne qui a **modifié le `cron` en dernier**,
   et supposent les notifications « Actions » activées sur le compte GitHub. Pour vérifier que l'alerte
-  arrive : *Actions › Surveillance du site › Run workflow*, avec `url` = `https://kel-empreinte.pages.dev/nope`.
+  arrive : *Actions › Surveillance du site › Run workflow*, avec `url` = `https://kel-empreinte.invalid/`
+  — un hôte qui n'existe pas, donc un échec net et indiscutable.
+- **Cloudflare Pages sert la page d'accueil, en 200, pour tout chemin qu'il ne connaît pas** (mesuré :
+  `/nope`, `/zzz/qqq` renvoient l'index complet). Un code HTTP ne prouve donc rien sur cet hébergement :
+  c'est pourquoi la sonde exige des marqueurs de contenu, y compris sur `/admin/`, où un 200 seul
+  laisserait passer un CMS disparu du déploiement.
 - Le garde-fou **détecte, il ne bloque pas** : Cloudflare builde en parallèle de GitHub Actions, un
   catalogue amputé est donc publié, puis signalé dans la minute. L'empêcher supposerait une branche
   protégée et un flux de pull requests, incompatible avec l'écriture directe du CMS.
