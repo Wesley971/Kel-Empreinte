@@ -19,6 +19,7 @@ HTML du lookbook est régénéré à chaque déploiement depuis `data/products.j
 | `admin/` | Sveltia CMS. `config.yml` = schéma des fiches + titre/logo de l'interface (`app_title`, `logo`) ; `index.html` = en-tête Kel'Empreinte au-dessus du CMS monté dans `#nc-root` (les couleurs de Sveltia elles-mêmes ne sont pas personnalisables) ; `guide.html` = guide « Gérer mes bijoux » pour Prescilia (`noindex`) ; `logo.png` = logo de connexion/favicon ; `manifest.webmanifest` + `icon-*.png` = nom « Mes bijoux » et icône du raccourci « écran d'accueil », à garder devant le script Sveltia qui injecte son propre manifest |
 | `images/` | photos (les uploads du CMS arrivent ici) |
 | `functions/` | Cloudflare Pages Functions : les routes `/api/*` (voir *Fonctions serverless*). `_lib/` = modules partagés (réponses JSON, accès GitHub, vérification du jeton Cloudflare Access) ; `api/` = les routes, une par fichier |
+| `gestion/` | le nouvel espace de gestion (en construction), derrière Cloudflare Access (voir *Espace de gestion*). Chemin provisoire tant que `admin/` est occupé par Sveltia ; `index.html` = page d'attente qui confirme la connexion, remplacée par l'écran « Mes bijoux » |
 | `.node-version` | version de Node utilisée par le build Cloudflare |
 
 ## Déploiement — Cloudflare Pages
@@ -38,6 +39,7 @@ projet, bloc **Build**) :
 | Build cache / watch paths | disabled / `*` (valeurs par défaut) |
 | Previews | chaque push d'une branche hors `master` déploie une preview `<branche>.kel-empreinte.pages.dev` avec la même build command (réglage non affiché dans l'interface actuelle, comportement vérifié) |
 | Notification | compte › *Notifications* › **Pages › Project updates**, nommée « Kel'Empreinte - échec de déploiement » : projet `kel-empreinte`, environnements Production + Preview, événement **Deployment failed** seul, e-mail au mainteneur |
+| Access policy | **enabled** — protège toutes les previews `*.kel-empreinte.pages.dev` par Cloudflare Access ; l'application correspondante et celle de la production sont décrites dans *Espace de gestion* |
 
 Chaque push sur `master` — y compris chaque enregistrement dans `/admin` — déclenche un build puis
 un déploiement (~1 à 2 min). Un build en échec **laisse le dernier déploiement en ligne** et envoie
@@ -71,6 +73,60 @@ ce qui se trouve entre les marqueurs — c'est écrasé au déploiement.
 dans `data/products.json` et `images/` sur `master`. Les champs et leurs règles sont décrits dans
 `admin/config.yml`.
 
+**Hors service depuis le renommage du projet** (les variables du worker OAuth n'ont pas suivi) et
+**volontairement non réparé** (décision du 16/09/2026, KD-84) : le site n'est pas encore en service,
+et Sveltia est remplacé par l'espace de gestion sur mesure ci-dessous. Le dossier `admin/`, le worker
+et le contrôle `/admin/` de la sonde disparaissent en phase 3 du chantier, qui tranchera aussi si le
+nouvel espace reprend `/admin` ou reste à `/gestion`.
+
+## Espace de gestion — `/gestion` et Cloudflare Access
+
+Le nouvel espace de gestion (KD-84) vit à **`/gestion/`** — chemin provisoire, `/admin` étant occupé
+par les fichiers de Sveltia — et écrit par les routes **`/api/admin/*`**. Les deux sont protégés par
+**Cloudflare Access** (Zero Trust) : connexion par **code à usage unique envoyé par mail**, sans
+compte GitHub ni mot de passe. Deux verrous en série : Access à la bordure (redirection vers la page
+de connexion tant qu'il n'y a pas de session), puis le middleware `functions/api/admin/_middleware.js`
+qui revérifie le jeton (voir *Fonctions serverless*). Ce qui est public reste public : `/`, `/admin/`,
+`/api/health`, `images/`.
+
+Réglages Zero Trust (dashboard, non versionnés — état au 16/09/2026) :
+
+| Réglage | Valeur |
+|---|---|
+| Équipe | `kelempreinte` → team domain **`kelempreinte.cloudflareaccess.com`** (l'URL de la page de connexion ; le bandeau de cette page peut afficher l'ancien nom auto-généré `hidden-pond-e843`, sans conséquence — l'émetteur du jeton est bien `kelempreinte`, vérifié). Offre Free (50 utilisateurs) : **exige un moyen de paiement enregistré**, sans facturation ; au-delà de 50 sièges les connexions sont bloquées, pas facturées |
+| Méthode de connexion | **One-time PIN** seule (*Settings › Authentication › Login methods*) |
+| Application « production » | *Access controls › Applications* › « Kel'Empreinte — espace de gestion (production) » : hostnames **`kel-empreinte.pages.dev/gestion*`** et **`kel-empreinte.pages.dev/api/admin*`** (le `*` en fin de chemin couvre le chemin nu et ses sous-chemins ; `gestion/*` seul **exclurait** `/gestion`) |
+| Application « previews » | « Kel'Empreinte — espace de gestion (previews) » : hostname **`*.kel-empreinte.pages.dev`**, tout le site des previews. Créée par le bouton *Access policy* du projet Pages |
+| Policy (les deux applications) | une seule, **Allow**, *Include → Emails* : les adresses de Prescilia et de Wesley, rien d'autre |
+| Session | **1 semaine** (les deux applications) |
+| AUD | chaque application a son *Application Audience (AUD) Tag* (onglet *Overview*) → `CF_ACCESS_AUD` de l'environnement Pages correspondant : production ↔ Production, previews ↔ Preview |
+
+Les deux applications viennent de la procédure « Known issues » de Cloudflare Pages, la seule qui
+accepte un hostname `pages.dev` sans domaine personnalisé : activer *Access policy* sur le projet
+(crée l'application `*.kel-empreinte.pages.dev`), retirer le `*` du sous-domaine dans Zero Trust et
+poser les chemins (→ application de production), puis réactiver *Access policy* (→ nouvelle
+application pour les previews).
+
+**Ajouter ou retirer une personne** : Zero Trust › Applications › chaque application › *Policies* ›
+la liste *Emails*. Aucun déploiement nécessaire. **Révoquer une session en cours** : *Zero Trust ›
+My Team › Users* › la personne › *Revoke sessions*.
+
+**Vérifier** (sans session, la bordure doit rediriger ; ce qui est public ne doit pas l'être) :
+
+```
+curl -sI https://kel-empreinte.pages.dev/gestion/ | grep -i location     # https://kelempreinte.cloudflareaccess.com/…
+curl -sI https://kel-empreinte.pages.dev/api/admin/ | grep -i location   # idem
+curl -sI https://kel-empreinte.pages.dev/ | head -1                      # 200, pas de redirection
+```
+
+Après connexion dans un navigateur, `/api/admin/quoi` répond `404 {"error":"Cette adresse n'existe pas."}`
+avec `Cache-Control: no-store` : la preuve que le middleware a accepté le jeton. Un `401` à la place
+signifie que `CF_ACCESS_AUD` ou `CF_ACCESS_TEAM_DOMAIN` ne correspond pas à l'application (le log
+`access : …` du déploiement nomme la cause) ; un `503`, que les variables manquent.
+
+**Limite** : les previews étant entièrement derrière Access, `node check-site.js --url <preview>` ne
+fonctionne plus (la page de connexion est servie à la place du lookbook). La sonde vise la production.
+
 ## Fonctions serverless — `/api`
 
 Le dossier `functions/` est compilé par Cloudflare Pages à chaque déploiement en un Worker qui
@@ -83,7 +139,7 @@ ligne SumUp.
 | Route | Rôle |
 |---|---|
 | `GET /api/health` | preuve de vie : lit `data/products.json` sur GitHub avec le token et répond `{ ok, github, products, checkedAt }` (200) ou `{ ok: false, … }` (503). Publique, mise en cache 5 min (1 min en échec) pour ne pas consommer le quota GitHub ; `checkedAt` date la lecture GitHub réelle — deux réponses avec le même `checkedAt` viennent du cache. Ne révèle que le nombre de pièces, un état et cette date — le détail des erreurs est dans les logs Cloudflare (*Functions › Real-time logs*) |
-| `/api/admin/*` | routes d'écriture de l'espace de gestion (à venir). Protégées par `functions/api/admin/_middleware.js` : **503** tant que Cloudflare Access n'est pas configuré, **401** sans jeton Access valide. Fermé par défaut, sans exception |
+| `/api/admin/*` | routes d'écriture de l'espace de gestion (à venir). Derrière Cloudflare Access à la bordure (voir *Espace de gestion*), puis `functions/api/admin/_middleware.js` revérifie le jeton : **503** si les variables Access manquent, **401** sans jeton valide. Fermé par défaut, sans exception |
 | tout autre `/api/*` | 404 JSON — au lieu de la page d'accueil en 200 que Pages sert pour un chemin inconnu |
 
 Toutes les réponses sont en JSON, `Cache-Control: no-store` sauf mention contraire, messages
@@ -107,7 +163,8 @@ laquelle des causes est en jeu.
 |---|---|---|---|
 | `GITHUB_TOKEN` | Secret | Production + Preview | token GitHub fine-grained, **Contents : Read and write** sur le seul dépôt `Wesley971/Kel-Empreinte`, aucune autre permission. Nom du token : `kel-empreinte-pages-functions`. **Il expire** : la date est suivie dans le ticket KD-94 (sonde à ajouter) — passé cette date, toute écriture de l'espace de gestion échoue et `/api/health` passe en 503 |
 | `GITHUB_REPO`, `GITHUB_BRANCH` | texte | facultatives | dépôt et branche visés ; par défaut `Wesley971/Kel-Empreinte` et `master`, codés dans `functions/_lib/github.js` |
-| `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | texte | Production + Preview | configuration Cloudflare Access de `/admin` et `/api/admin/*` : le team domain (`<équipe>.cloudflareaccess.com`, sans `https://`) et l'*Application Audience (AUD) Tag* de l'application Access. **À poser lors de la mise en place d'Access (KD-91)** ; tant qu'elles manquent, `/api/admin/*` répond 503 |
+| `CF_ACCESS_TEAM_DOMAIN` | texte | Production + Preview | `kelempreinte.cloudflareaccess.com` — **sans `https://`** (le middleware compare l'émetteur du jeton à `https://` + cette valeur) |
+| `CF_ACCESS_AUD` | texte | Production + Preview, **valeurs différentes** | l'*Application Audience (AUD) Tag* de l'application Access de l'environnement : « production » sur Production, « previews » sur Preview (voir *Espace de gestion*). Une AUD croisée donne un 401 permanent, jamais un 503 |
 
 Le middleware revérifie le jeton Access (`Cf-Access-Jwt-Assertion`, RS256, clés publiques du team
 domain, `aud` / `iss` / `exp`) même si Access a déjà filtré la requête à la bordure : si la policy
@@ -133,7 +190,7 @@ retour d'information passe par les libellés du CMS.
 | Niveau | Détecte | Mécanisme | Alerte |
 |---|---|---|---|
 | Validité des données | JSON cassé, champ manquant, image introuvable | `build.js` au déploiement | e-mail Cloudflare « Deployment failed » |
-| Site vs dépôt | site injoignable, déploiement échoué ou jamais parti, catalogue amputé en ligne, `/admin` inaccessible | `check-site.js`, toutes les 6 h | e-mail GitHub (workflow en échec) |
+| Site vs dépôt | site injoignable, déploiement échoué ou jamais parti, catalogue amputé en ligne, `/admin` inaccessible, **espace de gestion (`/gestion/`, `/api/admin/`) servi sans redirection Access** | `check-site.js`, toutes les 6 h | e-mail GitHub (workflow en échec) |
 | Dépôt vs son état d'avant | catalogue qui perd anormalement des pièces alors que le build réussit | `check-catalog-drop.js`, à chaque push touchant `data/products.json` | e-mail GitHub (workflow en échec) |
 
 La sonde compare le site au dépôt ; le garde-fou compare le dépôt à lui-même. Aucun des deux ne
