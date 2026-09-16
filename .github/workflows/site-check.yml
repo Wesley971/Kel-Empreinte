@@ -1,0 +1,41 @@
+# Sonde planifiée : le site en ligne reflète-t-il toujours le dépôt ? (voir check-site.js)
+# Un échec envoie un e-mail GitHub à la personne qui a modifié le « cron » en dernier.
+name: Surveillance du site
+
+on:
+  schedule:
+    # Toutes les 6 heures, à une minute décalée : les crons à heure ronde sont les plus retardés.
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "URL à sonder — vide = production. Pour vérifier que l'alerte arrive bien : https://kel-empreinte.pages.dev/nope"
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    # Pire cas légitime : deux lectures (15 s de délai maximal, un nouvel essai chacune) plus
+    # l'attente de 90 s quand un déploiement est en cours, soit environ 4 min. 10 = filet, pas limite.
+    timeout-minutes: 10
+    steps:
+      # Profondeur 1 : le script n'a besoin que de data/products.json et de la date du dernier commit.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+
+      - name: Sonder le site
+        env:
+          SITE_URL: ${{ github.event.inputs.url }}
+        run: |
+          if [ -n "$SITE_URL" ]; then
+            node check-site.js --url "$SITE_URL"
+          else
+            node check-site.js
+          fi

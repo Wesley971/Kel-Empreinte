@@ -1,0 +1,37 @@
+# Garde-fou : à chaque enregistrement dans /admin, le catalogue a-t-il perdu anormalement
+# de pièces ? (voir check-catalog-drop.js). C'est le seul contrôle qui voit ce cas : les
+# données restent valides, le build réussit, le site se déploie — mais il manque la moitié
+# du catalogue. Détection seulement : le déploiement Cloudflare tourne en parallèle.
+name: Garde-fou du catalogue
+
+on:
+  push:
+    branches: [master]
+    paths: ['data/products.json']
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Historique complet : un push peut contenir plusieurs commits, la comparaison porte
+      # sur l'état d'avant le push entier, pas sur le dernier commit seul.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+
+      - name: Comparer le catalogue à son état d'avant le push
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # Force push ou branche neuve : l'état d'avant n'existe pas. On laisse alors le
+          # fichier absent, le script le constate et se tait plutôt que d'inventer une comparaison.
+          git show "$BEFORE:data/products.json" > /tmp/products-avant.json 2>/dev/null || rm -f /tmp/products-avant.json
+          node check-catalog-drop.js /tmp/products-avant.json data/products.json
