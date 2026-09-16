@@ -98,6 +98,7 @@ collections:
                 value_type: "float"
                 required: false
                 min: 0
+                comment: "Obligatoire si la pièce est \"Disponible\" avec \"Prix fixe\" : sans prix, ta modification n'arrive pas sur le site, qui garde sa version précédente."
                 hint: "Ignoré si \"Sur devis\" est sélectionné ci-dessus. Laisser vide pour une pièce \"Bientôt\"."
 
               - label: "Prix confirmé"
