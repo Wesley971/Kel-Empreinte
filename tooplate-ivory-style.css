@@ -1149,33 +1149,19 @@ img { display: block; max-width: 100%; height: auto; }
   line-height: 1.8;
 }
 
-.faq-grid {
-  --faq-gap: 40px;
-  display: flex;
-  gap: var(--faq-gap);
-}
-
-/* Colonne autonome : dans une grille 2×2, les deux colonnes partagent leurs lignes et
-   l'ouverture d'une réponse pousse aussi la question d'à côté. Ici chaque colonne empile
-   ses questions pour elle seule — une ouverture ne déplace que la question juste en dessous
-   dans la même colonne, jamais l'autre colonne, jamais latéralement. */
-.faq-col {
-  flex: 1 1 0;
-  min-width: 0;
+/* Mise en page de base : accordéon en une colonne. C'est le rendu du mobile, et celui de
+   n'importe quelle largeur si le script ne tourne pas. Le format à panneau (liste à gauche,
+   réponse à droite) est réservé au bloc min-width: 769px plus bas, et conditionné à la classe
+   .is-split que le script pose une fois les réponses déplacées dans .faq-stage. */
+.faq-list {
   display: flex;
   flex-direction: column;
-  gap: var(--faq-gap);
+  gap: 40px;
 }
 
 .faq-item {
   padding-top: 28px;
   border-top: 1px solid var(--oat-deep);
-  /* Hauteur de deux lignes de question réservée en bas de l'item (28px de padding + 1px de
-     bordure + 2 × 1.3 × 19px) : sans elle, une question sur une ligne et sa voisine sur deux
-     décaleraient la deuxième rangée des colonnes. La réserve est invisible au repos, couverte
-     dès qu'un panneau s'ouvre. Tient jusqu'à deux lignes de question — environ 85 caractères
-     sur grand écran, moins vers 800px de fenêtre ; au-delà, la deuxième rangée se désaligne. */
-  min-height: calc(28px + 1px + 2 * 1.3 * 19px);
 }
 
 .faq-trigger {
@@ -1240,6 +1226,51 @@ img { display: block; max-width: 100%; height: auto; }
   line-height: 1.75;
   color: var(--ink-muted);
   padding-top: 10px;
+}
+
+/* Format à panneau, au-delà du point de bascule mobile : les questions restent à gauche, la
+   réponse s'affiche à droite. Aucune réponse ne s'ouvre dans le flux, donc aucune question ne
+   bouge. Conditionné à .is-split : sans script, les réponses sont restées dans leur question
+   et c'est l'accordéon ci-dessus qui s'applique, à toutes les largeurs. */
+@media (min-width: 769px) {
+  .is-split .faq-inner { max-width: 1040px; }
+
+  .is-split .faq-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+    gap: 40px;
+  }
+
+  /* Toutes les réponses occupent la même cellule : la scène fait donc la hauteur de la plus
+     longue et ne change plus de taille d'une question à l'autre. Les réponses masquées le sont
+     en visibility (elles comptent dans le calcul de hauteur, contrairement à display: none)
+     et sortent de l'arbre d'accessibilité : une seule réponse lisible à la fois. */
+  .is-split .faq-stage {
+    display: grid;
+    padding-top: 28px;
+    border-top: 1px solid var(--oat-deep);
+  }
+
+  .is-split .faq-stage .faq-panel {
+    grid-area: 1 / 1;
+    display: block;
+    visibility: hidden;
+  }
+
+  .is-split .faq-stage .faq-panel.is-shown { visibility: visible; }
+
+  /* Le chevron ne déplie plus rien : il pointe vers la réponse, à droite. */
+  .is-split .faq-chevron { transform: none; }
+
+  .is-split .faq-trigger:hover { color: var(--terra); }
+
+  .is-split .faq-item.is-open .faq-trigger { color: var(--terra); }
+
+  .is-split .faq-item.is-open .faq-chevron {
+    transform: none;
+    stroke: var(--terra);
+  }
 }
 
 /* ═══════════════════════════════════════════════
@@ -1609,13 +1640,7 @@ body.is-scroll-locked {
   .reviews { padding: 48px 24px; }
 
   .faq { padding: 60px 24px; }
-  /* Une seule colonne : les deux conteneurs s'empilent, plus rien à réserver ni à aligner.
-     flex: none annule le partage de largeur (flex: 1 1 0) devenu partage de hauteur une fois
-     l'axe vertical — sans effet visible ici, mais flex-basis: 0 en colonne ne veut plus dire
-     la même chose et n'a aucune raison d'être conservé. */
-  .faq-grid { --faq-gap: 36px; flex-direction: column; }
-  .faq-col { flex: none; }
-  .faq-item { min-height: 0; }
+  .faq-list { gap: 36px; }
 
   .signature-content { padding: 24px; }
   .signature-bg-logo { font-size: 80px; }

@@ -491,30 +491,80 @@ https://www.tooplate.com/view/2166-ivory-flow
   var faqSection = document.querySelector('.faq');
   var faqInner = document.querySelector('.faq-inner');
   var faqItems = document.querySelectorAll('.faq-item');
+  var faqStage = document.querySelector('.faq-stage');
+  var faqSplit = window.matchMedia('(min-width: 769px)');
 
   function centerFaq() {
     if (!faqSection || !faqInner) return;
-    if (faqSection.querySelector('.faq-item.is-open')) return; // la mesure doit être celle du bloc fermé
+    // En accordéon, seule la mesure bloc fermé est juste : une réponse ouverte fausserait le
+    // centrage. En format à panneau, la hauteur du bloc ne dépend pas de la réponse affichée
+    // (la scène réserve la plus longue), donc on mesure même avec une question sélectionnée.
+    if (!faqSplit.matches && faqSection.querySelector('.faq-item.is-open')) return;
     faqSection.style.setProperty('--faq-offset', '0px');      // sinon l'offset précédent fausse la mesure
     var cs = getComputedStyle(faqSection);
     var free = faqSection.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - faqInner.offsetHeight;
     faqSection.style.setProperty('--faq-offset', Math.max(0, free / 2) + 'px');
   }
 
-  centerFaq();
-  window.addEventListener('load', centerFaq);
-  window.addEventListener('resize', centerFaq);
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(centerFaq); // le swap Fraunces change la hauteur du bloc
+  /* ── FAQ: accordéon sur mobile, réponse dans une scène dédiée au-delà de 768px ──
+     Les réponses sont écrites dans leur question (accordéon, et rendu sans script). Au-dessus
+     du point de bascule, elles sont déplacées dans .faq-stage et affichées une à la fois :
+     cliquer une question ne modifie plus que le contenu de la scène, la liste ne bouge pas. */
+  function faqPanelOf(item) {
+    var trigger = item.querySelector('.faq-trigger');
+    return trigger ? document.getElementById(trigger.getAttribute('aria-controls')) : null;
+  }
 
-  /* ── FAQ: accordion ── */
+  function showFaq(item, open) {
+    var trigger = item.querySelector('.faq-trigger');
+    var panel = faqPanelOf(item);
+    if (!trigger || !panel) return;
+    item.classList.toggle('is-open', open);
+    panel.classList.toggle('is-shown', open);
+    trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+  }
+
+  function applyFaqLayout() {
+    if (!faqStage) return;
+    var split = faqSplit.matches;
+    var selected = null;
+    // La scène n'est annoncée qu'une fois son contenu en place (plus bas) : une région live
+    // armée pendant qu'on y déplace les réponses ferait lire la première réponse au chargement,
+    // et la réponse sélectionnée à chaque franchissement de largeur.
+    faqStage.removeAttribute('aria-live');
+    faqItems.forEach(function(item) {
+      var panel = faqPanelOf(item);
+      if (!panel) return;
+      if (!selected && item.classList.contains('is-open')) selected = item;
+      // Le déplacement ne perd aucun écouteur : ils sont posés sur les éléments, pas sur leur position.
+      if (split) faqStage.appendChild(panel);
+      else item.appendChild(panel);
+    });
+    if (faqSection) faqSection.classList.toggle('is-split', split);
+    // Une réponse est toujours affichée en format à panneau : la question déjà ouverte, sinon
+    // la première. En accordéon, l'état en cours est conservé tel quel.
+    if (split) {
+      var current = selected || faqItems[0];
+      faqItems.forEach(function(item) { showFaq(item, item === current); });
+      // Armée au tour suivant, donc après les déplacements et l'affichage initial : seuls les
+      // changements de réponse provoqués par un clic sont lus. En mode panneau, la réponse est
+      // loin de sa question dans l'ordre de lecture (elle suit toute la liste), d'où l'annonce.
+      setTimeout(function() { if (faqSplit.matches) faqStage.setAttribute('aria-live', 'polite'); }, 0);
+    }
+    centerFaq();
+  }
+
   faqItems.forEach(function(item) {
     var trigger = item.querySelector('.faq-trigger');
-    var panel = item.querySelector('.faq-panel');
+    var panel = faqPanelOf(item);
     if (!trigger || !panel) return;
     trigger.addEventListener('click', function() {
-      var open = item.classList.toggle('is-open');
-      trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
-      panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+      if (faqSplit.matches) {
+        faqItems.forEach(function(other) { showFaq(other, other === item); }); // une seule réponse à la fois
+      } else {
+        showFaq(item, !item.classList.contains('is-open'));
+      }
     });
     // Rattrape un redimensionnement survenu panneau ouvert : recalcul une fois le panneau
     // refermé (fin de transition, pas au clic, sinon la mesure inclurait le panneau en cours de fermeture)
@@ -522,6 +572,12 @@ https://www.tooplate.com/view/2166-ivory-flow
       if (e.propertyName === 'grid-template-rows' && !item.classList.contains('is-open')) centerFaq();
     });
   });
+
+  applyFaqLayout();
+  faqSplit.addEventListener('change', applyFaqLayout); // au franchissement seulement, pas à chaque resize
+  window.addEventListener('load', centerFaq);
+  window.addEventListener('resize', centerFaq);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(centerFaq); // le swap Fraunces change la hauteur du bloc
 
   /* ── Smooth scroll for pill nav ── */
   pillLinks.forEach(function(link) {

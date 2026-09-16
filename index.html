@@ -388,11 +388,10 @@
         <p class="faq-subtitle">Les réponses aux questions qu'on nous pose le plus souvent.</p>
       </div>
       <div class="faq-grid">
-        <!-- Deux colonnes indépendantes plutôt que les lignes d'une grille : une réponse qui
-             s'ouvre ne doit pousser que la question suivante de SA colonne (voir .faq-col dans
-             le CSS). La répartition est manuelle — une nouvelle question se place dans la colonne
-             voulue (3 | 2 si le nombre est impair), elle ne bascule pas toute seule. -->
-        <div class="faq-col">
+        <!-- Chaque réponse est écrite dans sa question : c'est l'accordéon du mobile, et le rendu
+             si le script ne tourne pas. Au-dessus de 768px, le script déplace les réponses dans
+             .faq-stage et n'en affiche qu'une : la liste de questions ne bouge alors plus jamais. -->
+        <div class="faq-list">
           <div class="faq-item">
             <h3 class="faq-question">
               <button class="faq-trigger" type="button" aria-expanded="false" aria-controls="faq-panel-1" id="faq-trigger-1">
@@ -419,8 +418,6 @@
               </div>
             </div>
           </div>
-        </div>
-        <div class="faq-col">
           <div class="faq-item">
             <h3 class="faq-question">
               <button class="faq-trigger" type="button" aria-expanded="false" aria-controls="faq-panel-3" id="faq-trigger-3">
@@ -448,6 +445,7 @@
             </div>
           </div>
         </div>
+        <div class="faq-stage"></div>
       </div>
     </div>
   </section>
