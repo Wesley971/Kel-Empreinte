@@ -19,11 +19,11 @@ jobs:
     steps:
       # Historique complet : un push peut contenir plusieurs commits, la comparaison porte
       # sur l'état d'avant le push entier, pas sur le dernier commit seul.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: '.node-version'
 
