@@ -1,0 +1,33 @@
+@charset "utf-8";
+/* Tokens visuels du site Kel'Empreinte — la seule définition des couleurs, courbes et textures.
+
+   Chargé par index.html (avant tooplate-ivory-style.css) et par l'espace de gestion (/gestion/),
+   pour que l'écran de Prescilia reprenne exactement la palette du site sans en copier les valeurs :
+   une couleur ajustée ici est ajustée partout. Les valeurs viennent du template Tooplate 2166
+   Ivory Flow, adaptées à la marque (voir les commentaires en place). Les règles qui les utilisent
+   restent dans la feuille de chaque page. */
+:root {
+  --oat: #FCFAF8;
+  --oat-mid: #F5F0EB;
+  --oat-deep: #EDE6DD;
+  --terra: #D96C4A;
+  --terra-light: rgba(217, 108, 74, 0.12);
+  --terra-ghost: rgba(217, 108, 74, 0.06);
+  --amber: #B5731F;
+  /* Même teinte et même saturation que --amber (34°, 71%), luminosité 42% -> 34% : emphase
+     factuelle lisible sur les fonds clairs du site (4,79:1 sur --oat-mid, 5,21:1 sur --oat),
+     là où --amber plafonne à 3,41:1. Reste hors de tout élément interactif, comme --amber. */
+  --amber-deep: #945E19;
+  --amber-ghost: rgba(181, 115, 31, 0.06);
+  --ink: #1A1714;
+  --ink-soft: #3D3832;
+  --ink-muted: #6C6459;
+  --ink-faint: #B8B0A6;
+  --white: #FFFFFF;
+  --gold: #AD8A3C;
+  --gold-light: #C9A431;
+  --gold-ghost: rgba(173, 138, 60, 0.06);
+  --ease-soft: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --noise-texture: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+}
