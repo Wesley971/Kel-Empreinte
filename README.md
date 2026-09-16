@@ -82,7 +82,7 @@ ligne SumUp.
 
 | Route | Rôle |
 |---|---|
-| `GET /api/health` | preuve de vie : lit `data/products.json` sur GitHub avec le token et répond `{ ok, github, products }` (200) ou `{ ok: false }` (503). Publique, mise en cache 5 min (1 min en échec) pour ne pas consommer le quota GitHub. Ne révèle que le nombre de pièces et un état — le détail des erreurs est dans les logs Cloudflare (*Functions › Real-time logs*) |
+| `GET /api/health` | preuve de vie : lit `data/products.json` sur GitHub avec le token et répond `{ ok, github, products, checkedAt }` (200) ou `{ ok: false, … }` (503). Publique, mise en cache 5 min (1 min en échec) pour ne pas consommer le quota GitHub ; `checkedAt` date la lecture GitHub réelle — deux réponses avec le même `checkedAt` viennent du cache. Ne révèle que le nombre de pièces, un état et cette date — le détail des erreurs est dans les logs Cloudflare (*Functions › Real-time logs*) |
 | `/api/admin/*` | routes d'écriture de l'espace de gestion (à venir). Protégées par `functions/api/admin/_middleware.js` : **503** tant que Cloudflare Access n'est pas configuré, **401** sans jeton Access valide. Fermé par défaut, sans exception |
 | tout autre `/api/*` | 404 JSON — au lieu de la page d'accueil en 200 que Pages sert pour un chemin inconnu |
 

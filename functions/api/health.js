@@ -29,16 +29,20 @@ export async function onRequestGet(context) {
     if (cached) return cached;
   }
 
+  // checkedAt date la lecture GitHub réelle, pas la réponse : deux appels qui renvoient le
+  // même checkedAt ont été servis depuis le cache. C'est ce qui rend le cache observable de
+  // l'extérieur, et ce qui permettra à la sonde (KD-94) de repérer une réponse trop vieille.
+  const checkedAt = new Date().toISOString();
   let body;
   let status;
   try {
     const { content } = await readRepoFile(context.env, PRODUCTS_FILE);
     const products = JSON.parse(content);
-    body = { ok: true, github: 'ok', products: Array.isArray(products) ? products.length : null };
+    body = { ok: true, github: 'ok', products: Array.isArray(products) ? products.length : null, checkedAt };
     status = 200;
   } catch (err) {
     console.error('health : ' + (err && err.message ? err.message : err));
-    body = { ok: false, github: 'erreur', products: null };
+    body = { ok: false, github: 'erreur', products: null, checkedAt };
     status = 503;
   }
 
