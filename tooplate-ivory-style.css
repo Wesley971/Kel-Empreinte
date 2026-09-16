@@ -20,6 +20,10 @@ https://www.tooplate.com/view/2166-ivory-flow
   --terra-light: rgba(217, 108, 74, 0.12);
   --terra-ghost: rgba(217, 108, 74, 0.06);
   --amber: #B5731F;
+  /* Même teinte et même saturation que --amber (34°, 71%), luminosité 42% -> 34% : emphase
+     factuelle lisible sur les fonds clairs du site (4,79:1 sur --oat-mid, 5,21:1 sur --oat),
+     là où --amber plafonne à 3,41:1. Reste hors de tout élément interactif, comme --amber. */
+  --amber-deep: #945E19;
   --amber-ghost: rgba(181, 115, 31, 0.06);
   --ink: #1A1714;
   --ink-soft: #3D3832;
@@ -1220,11 +1224,21 @@ img { display: block; max-width: 100%; height: auto; }
   overflow: hidden;
 }
 
+/* Information clé de chaque réponse — une seule par réponse, sinon plus rien ne ressort.
+   Le terracotta est exclu : il est réservé à l'interactif, une clé en terracotta se lirait
+   comme un lien. On reste donc sur la couleur d'emphase factuelle du site, l'ambre, dans sa
+   déclinaison assombrie : --amber ne donne que 3,41:1 sur la surface du panneau, --amber-deep
+   4,79:1. Graisse 500 et pas d'italique : l'œil s'arrête au lieu de glisser. */
+.faq-key {
+  font-weight: 500;
+  color: var(--amber-deep);
+}
+
 .faq-answer {
   font-size: 14px;
   font-weight: 300;
   line-height: 1.75;
-  color: var(--ink-muted);
+  color: var(--ink-soft);
   padding-top: 10px;
 }
 
@@ -1233,24 +1247,40 @@ img { display: block; max-width: 100%; height: auto; }
    bouge. Conditionné à .is-split : sans script, les réponses sont restées dans leur question
    et c'est l'accordéon ci-dessus qui s'applique, à toutes les largeurs. */
 @media (min-width: 769px) {
+  /* Lisibilité sur grand écran. Attaché à la largeur et non à .is-split : sans script, le
+     texte doit rester lisible sur un grand écran. */
+  .faq-trigger { font-size: 22px; }
+  .faq-answer { font-size: 17px; }
+
   .is-split .faq-inner { max-width: 1040px; }
 
+  /* align-items: stretch — la zone de réponse fait la hauteur de la liste. Une réponse courte
+     occupe alors une surface stable au lieu de flotter : c'est la surface qui tient la colonne,
+     pas le texte. */
   .is-split .faq-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    align-items: start;
-    gap: 40px;
+    align-items: stretch;
+    gap: 56px;
   }
 
-  /* Toutes les réponses occupent la même cellule : la scène fait donc la hauteur de la plus
-     longue et ne change plus de taille d'une question à l'autre. Les réponses masquées le sont
-     en visibility (elles comptent dans le calcul de hauteur, contrairement à display: none)
-     et sortent de l'arbre d'accessibilité : une seule réponse lisible à la fois. */
+  /* La scène prend la hauteur de la liste (align-items: stretch sur la grille). L'empilement
+     de toutes les réponses dans la même cellule garantit qu'elle ne varie pas d'une question
+     à l'autre, et reprendrait la main si une réponse devenait plus haute que la liste. Les
+     réponses masquées le sont en visibility (elles comptent dans le calcul de hauteur,
+     contrairement à display: none) et sortent de l'arbre d'accessibilité : une seule réponse
+     lisible à la fois. */
   .is-split .faq-stage {
     display: grid;
-    padding-top: 28px;
-    border-top: 1px solid var(--oat-deep);
+    align-content: start;
+    background: var(--oat-mid);
+    border: 1px solid var(--oat-deep);
+    border-radius: 24px;
+    padding: 28px 32px;
   }
+
+  /* Le retrait de 10px de la réponse disparaît : c'est le rembourrage de la surface qui le porte. */
+  .is-split .faq-stage .faq-answer { padding-top: 0; }
 
   .is-split .faq-stage .faq-panel {
     grid-area: 1 / 1;
