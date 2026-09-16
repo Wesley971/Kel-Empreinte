@@ -22,8 +22,10 @@
     return 'https://wa.me/33768728002?text=' + encodeURIComponent(message);
   }
 
+  // Demande d'achat : phrase neutre en genre (KD-78), la personne qui commande n'est pas
+  // forcément une femme. Un seul gabarit pour les trois entrées : lookbook, fiche, buy-circle.
   function buildWhatsAppLink(pieceName) {
-    return whatsAppUrl('Bonjour, je suis intéressée par : ' + pieceName);
+    return whatsAppUrl('Bonjour, cette pièce m\'intéresse : ' + pieceName);
   }
 
   // Demande de personnalisation : message volontairement générique (couleur ou
