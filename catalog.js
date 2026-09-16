@@ -3,7 +3,11 @@
    Chargé par index.html avant tooplate-ivory-script.js (global `KelCatalog`)
    et par build.js en Node (`require('./catalog.js')`). Tout ce qui touche à la
    présentation d'un produit vit ici, une seule fois, pour que le carrousel,
-   le lookbook et le build ne divergent jamais. */
+   le lookbook et le build ne divergent jamais.
+
+   Les espaces insécables s'y écrivent \u00a0 et jamais &nbsp; : les valeurs produites ici
+   alimentent aussi des textContent (fiche produit, légende de la lightbox), où une entité
+   HTML s'afficherait telle quelle. */
 
 (function(root, factory) {
   if (typeof module === 'object' && module.exports) {
@@ -30,7 +34,7 @@
 
   function formatPrice(product) {
     if (product.priceType === 'devis') return 'Sur devis';
-    return typeof product.price === 'number' ? product.price + '€' : '';
+    return typeof product.price === 'number' ? product.price + '\u00a0€' : '';
   }
 
   // Le champ est un texte libre saisi dans le CMS ; l'espace insécable évite un
