@@ -398,7 +398,7 @@
     "id": "blanc-vert",
     "name": "Blanc & Vert",
     "category": "boucles-oreilles",
-    "availability": "disponible",
+    "availability": "vendue",
     "customizable": false,
     "priceType": "fixe",
     "price": 22,
