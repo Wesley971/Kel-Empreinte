@@ -50,8 +50,11 @@ https://www.tooplate.com/view/2166-ivory-flow
       return res.json();
     })
     .then(function(allProducts) {
+      // Une pièce mise en avant puis vendue quitte la vitrine : son bouton « Commander »
+      // n'aurait plus de sens. Si plus aucune ne reste, la vitrine statique de départ demeure
+      // (initProductCarousel) : il faut alors mettre une autre pièce en avant.
       productSlides = allProducts
-        .filter(function(p) { return p.featured && p.heading && p.plainName; })
+        .filter(function(p) { return p.featured && p.heading && p.plainName && !window.KelCatalog.isSold(p); })
         .sort(function(a, b) { return (a.featuredOrder || Infinity) - (b.featuredOrder || Infinity); });
       initProductCarousel();
     })
@@ -406,8 +409,9 @@ https://www.tooplate.com/view/2166-ivory-flow
         });
       }
 
-      // Badge « Personnalisable » : href déjà posé au build, seule la garde anti-drag est partagée
-      var badge = card.querySelector('.lookbook-card-badge');
+      // Badge « Personnalisable » et lien « Une pièce semblable ? » (pièce vendue) : href déjà
+      // posé au build, seule la garde anti-drag est partagée
+      var badge = card.querySelector('.lookbook-card-badge, .lookbook-card-similar');
       if (badge) {
         badge.addEventListener('click', function(e) {
           if (dragDistance > 5) e.preventDefault();

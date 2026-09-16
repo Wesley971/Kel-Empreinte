@@ -342,6 +342,18 @@ img { display: block; max-width: 100%; height: auto; }
   box-shadow: 0 16px 56px rgba(26, 23, 20, 0.1);
 }
 
+/* Pièce vendue : photo légèrement désaturée pour dire « partie » sans l'éteindre — elle doit
+   rester désirable, c'est elle qui déclenche la demande d'une pièce semblable. Le survol lui
+   rend ses couleurs. */
+.lookbook-card[data-availability="vendue"] img {
+  filter: saturate(0.7);
+  transition: transform 1s var(--ease-soft), box-shadow 0.8s var(--ease-soft), filter 0.8s var(--ease-soft);
+}
+
+.lookbook-card[data-availability="vendue"]:hover img {
+  filter: none;
+}
+
 /* Badge « Personnalisable » (pièces cochées dans le CMS) : pastille posée sur la
    photo, même famille que le tag du hero ; c'est un lien WhatsApp, pas un décor */
 .lookbook-card-badge {
@@ -391,7 +403,17 @@ img { display: block; max-width: 100%; height: auto; }
   color: var(--amber);
 }
 
-.lookbook-card-cta {
+/* Pièce vendue : la mention prend la place du prix, en retrait (même registre que « Bientôt ») */
+.lookbook-card-price--sold {
+  font-weight: 500;
+  font-style: italic;
+  color: var(--ink-muted);
+}
+
+/* « Commander » (pièce en vente) et « Une pièce semblable ? » (pièce vendue) occupent la même
+   place ; la seconde classe existe pour que le script ne réécrive pas le lien de la première */
+.lookbook-card-cta,
+.lookbook-card-similar {
   position: absolute;
   bottom: -54px;
   right: 10px;
@@ -1621,7 +1643,7 @@ body.is-scroll-locked {
   .lookbook-card-visual { height: 45vh; min-height: 260px; border-radius: 24px; border-width: 6px; }
   .lookbook-card-badge { top: 18px; left: 18px; }
   .lookbook-card-price { bottom: -52px; }
-  .lookbook-card-cta { bottom: -80px; right: auto; left: 10px; }
+  .lookbook-card-cta, .lookbook-card-similar { bottom: -80px; right: auto; left: 10px; }
   .lookbook-footer { padding: 0 24px; flex-direction: column; align-items: flex-start; gap: 16px; }
 
   .product-image-zone { height: 50vh; cursor: auto; }

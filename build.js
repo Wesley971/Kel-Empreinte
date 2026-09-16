@@ -24,7 +24,9 @@ var ROOT = __dirname;
 var PRODUCTS_FILE = path.join(ROOT, 'data', 'products.json');
 var INDEX_FILE = path.join(ROOT, 'index.html');
 
-var AVAILABILITIES = ['disponible', 'bientot'];
+// Les états vivent dans catalog.js, partagé avec l'écran de gestion et l'API : une valeur
+// acceptée ici est une valeur que le site sait afficher.
+var AVAILABILITIES = catalog.AVAILABILITIES;
 var PRICE_TYPES = ['fixe', 'devis'];
 
 function fail(message) {
@@ -155,15 +157,19 @@ try {
 // index.html est en CRLF sur les postes Windows et en LF sur Cloudflare : on suit le fichier
 var eol = html.indexOf('\r\n') !== -1 ? '\r\n' : '\n';
 
+// Les pièces vendues passent en fin de lookbook ; le fichier garde son ordre de saisie
+var displayed = catalog.sortForDisplay(products);
+
 var output = html;
-output = replaceRegion(output, 'lookbook-count', catalog.renderLookbookCount(products, '      '), eol);
-output = replaceRegion(output, 'lookbook-cards', catalog.renderLookbookCards(products, '      '), eol);
+output = replaceRegion(output, 'lookbook-count', catalog.renderLookbookCount(displayed, '      '), eol);
+output = replaceRegion(output, 'lookbook-cards', catalog.renderLookbookCards(displayed, '      '), eol);
 
 if (output !== html) {
   fs.writeFileSync(INDEX_FILE, output, 'utf8');
 }
 
-var soon = products.filter(catalog.isComingSoon).length;
+var sold = products.filter(catalog.isSold).length;
+var soon = products.filter(function(product) { return !catalog.isSold(product) && catalog.isComingSoon(product); }).length;
 console.log('build.js : lookbook — ' + products.length + ' cartes générées (' +
-  (products.length - soon) + ' disponibles, ' + soon + ' bientôt)' +
+  (products.length - soon - sold) + ' disponibles, ' + soon + ' bientôt, ' + sold + ' vendues)' +
   (output === html ? ', index.html déjà à jour' : ', index.html mis à jour'));
