@@ -14,8 +14,11 @@
    Les règles d'état (quand une pièce peut passer en vente) sont celles de catalog.js, les
    mêmes que l'API : l'écran ne propose jamais une action que l'API refuserait — l'interrupteur
    d'une pièce sans photo ou sans prix est désactivé, la raison est affichée. L'API reste le
-   filet. Deux libellés distincts pour une pièce éteinte : « Bientôt (pas encore de photo) »
-   et « Vendue » — deux situations différentes, Prescilia doit voir laquelle. */
+   filet. Une pièce éteinte porte le libellé de son état (« Vendue », « Réservée jusqu'au … »,
+   « Brouillon », « Retirée ») : Prescilia doit voir pourquoi elle n'est pas en vente.
+
+   Transitoire (KD-97) : l'interrupteur ne connaît que « en vente » et « vendue » ; le contrôle
+   à cinq états, la réservation avec date et la modale « vendue » arrivent avec KD-98. */
 
 (function () {
   'use strict';
@@ -23,9 +26,9 @@
   var API = '/api/admin/products';
   var catalog = window.KelCatalog;
 
-  // Mots de l'ancien CMS (admin/config.yml), déjà validés avec Prescilia
-  var STATE_LABELS = { disponible: 'En vente', bientot: 'Bientôt (pas encore de photo)', vendue: 'Vendue' };
-  var CATEGORY_LABELS = { 'boucles-oreilles': "Boucles d'oreilles", noeud: 'Nœud', pendentif: 'Pendentif', bracelet: 'Bracelet', bague: 'Bague' };
+  // Libellés des états et des types : ceux de catalog.js, partagés avec le site (catalog absent :
+  // le démarrage, plus bas, affiche l'erreur au lieu de planter ici)
+  var STATE_LABELS = catalog ? catalog.STATE_LABELS : {};
   var BLOCKER_WORDS = { photo: 'photo', prix: 'prix' };
   var NETWORK_MESSAGE = 'Connexion impossible. Vérifiez votre réseau, puis rechargez la page : elle affichera l\'état réellement enregistré.';
 
@@ -126,7 +129,7 @@
     var row = els.template.content.firstElementChild.cloneNode(true);
     row.dataset.id = product.id;
     row.querySelector('.kel-row-name').textContent = product.name;
-    row.querySelector('.kel-row-meta').textContent = [CATEGORY_LABELS[product.category] || product.category, catalog.formatPrice(product)]
+    row.querySelector('.kel-row-meta').textContent = [catalog.categoryLabel(product.category), catalog.formatPrice(product)]
       .filter(Boolean).join(' · ');
 
     if (catalog.hasPhoto(product)) {
@@ -155,7 +158,9 @@
 
     // La ligne d'état explique pourquoi une pièce est éteinte ; allumée, l'interrupteur suffit
     var state = row.querySelector('.kel-row-state');
-    state.textContent = STATE_LABELS[product.availability] || product.availability;
+    state.textContent = product.availability === 'reservee'
+      ? catalog.formatReservedUntil(product) || STATE_LABELS.reservee
+      : STATE_LABELS[product.availability] || product.availability;
     state.hidden = onSale;
 
     var toggle = row.querySelector('.kel-switch');
@@ -236,8 +241,13 @@
   function updateSummary() {
     var rows = Array.prototype.slice.call(els.list.children);
     function count(state) { return rows.filter(function (r) { return r.dataset.availability === state; }).length; }
-    var sold = count('vendue');
-    els.summary.textContent = count('disponible') + ' en vente · ' + count('bientot') + ' bientôt · ' + sold + (sold > 1 ? ' vendues' : ' vendue');
+    // « 15 en vente · 1 réservée · 1 vendue » : les états à zéro ne sont pas cités
+    var parts = [count('disponible') + ' en vente'];
+    catalog.AVAILABILITIES.forEach(function (state) {
+      var n = state === 'disponible' ? 0 : count(state);
+      if (n) parts.push(n + ' ' + STATE_LABELS[state].toLowerCase() + (n > 1 ? 's' : ''));
+    });
+    els.summary.textContent = parts.join(' · ');
   }
 
   /* ── Démarrage ── */

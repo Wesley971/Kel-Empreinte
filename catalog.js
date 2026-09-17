@@ -1,16 +1,19 @@
-/* Catalogue — module partagé entre le navigateur et le build.
+/* Catalogue — module partagé entre le navigateur, le build, l'espace de gestion et les Functions.
 
-   Chargé par index.html avant tooplate-ivory-script.js (global `KelCatalog`),
-   par build.js en Node (`require('./catalog.js')`), par l'espace de gestion
-   (/gestion/gestion.js) et par les Pages Functions (functions/_lib/products.js,
-   import ESM d'un module CommonJS, résolu par le bundler de Cloudflare). Tout ce
-   qui touche à la présentation ou aux règles d'état d'un produit vit ici, une
-   seule fois, pour que le carrousel, le lookbook, le build, l'écran de gestion
+   Chargé par les pages du site avant leurs scripts (global `KelCatalog`), par build.js en Node
+   (`require('./catalog.js')`), par l'espace de gestion (/gestion/gestion.js) et par les Pages
+   Functions (functions/_lib/products.js, import ESM d'un module CommonJS, résolu par le bundler
+   de Cloudflare). Tout ce qui touche à la présentation ou aux règles d'état d'une pièce vit ici,
+   une seule fois, pour que l'accueil, la boutique, les pages pièce, le build, l'écran de gestion
    et l'API ne divergent jamais.
 
+   Modèle v2 (KD-97) : une pièce est unique. Elle a un prix, un public, un type ; elle peut porter
+   la référence que Prescilia lui donne (« BO-023 ») et appartenir à des collections. Cinq états,
+   voir AVAILABILITIES. Le rendu des cartes (boutique, accueil) est généré au déploiement.
+
    Les espaces insécables s'y écrivent \u00a0 et jamais &nbsp; : les valeurs produites ici
-   alimentent aussi des textContent (fiche produit, légende de la lightbox), où une entité
-   HTML s'afficherait telle quelle. */
+   alimentent aussi des textContent (écran de gestion), où une entité HTML s'afficherait telle
+   quelle. */
 
 (function(root, factory) {
   if (typeof module === 'object' && module.exports) {
@@ -21,50 +24,143 @@
 }(this, function() {
   'use strict';
 
+  /* ── Vocabulaire ── */
+
+  // « disponible » : en vente ; « reservee » : quelqu'un a jusqu'à `reservedUntil` pour payer ;
+  // « vendue » : partie, visible en boutique sans prix ni achat ; « brouillon » : en cours de
+  // saisie, invisible ; « retiree » : sortie du site sans être supprimée — sa référence reste
+  // prise, elle ne sera jamais réutilisée (KD-74). build.js refuse toute autre valeur.
+  var AVAILABILITIES = ['disponible', 'reservee', 'vendue', 'brouillon', 'retiree'];
+
+  var STATE_LABELS = {
+    disponible: 'En vente',
+    reservee: 'Réservée',
+    vendue: 'Vendue',
+    brouillon: 'Brouillon',
+    retiree: 'Retirée'
+  };
+
+  // Ordre des types = ordre des puces de la boutique. Un type sans pièce n'a pas de puce.
+  var CATEGORIES = [
+    { id: 'boucles-oreilles', label: 'Boucles d\'oreilles', plural: 'Boucles d\'oreilles' },
+    { id: 'collier', label: 'Collier', plural: 'Colliers' },
+    { id: 'noeud-papillon', label: 'Nœud papillon', plural: 'Nœuds papillon' },
+    { id: 'bague', label: 'Bague', plural: 'Bagues' },
+    { id: 'bracelet', label: 'Bracelet', plural: 'Bracelets' },
+    { id: 'cravate', label: 'Cravate', plural: 'Cravates' },
+    { id: 'broche', label: 'Broche', plural: 'Broches' }
+  ];
+
+  // « mixte » sort sous les deux puces Femme et Homme.
+  var AUDIENCES = [
+    { id: 'femme', label: 'Femme' },
+    { id: 'homme', label: 'Homme' },
+    { id: 'mixte', label: 'Mixte' }
+  ];
+
+  // Canal d'une vente (champ `sale.channel`, écrit quand une pièce passe « vendue »).
+  var CHANNELS = [
+    { id: 'site', label: 'Le site' },
+    { id: 'sumup', label: 'Boutique SumUp' },
+    { id: 'whatsapp', label: 'WhatsApp' },
+    { id: 'etsy', label: 'Etsy' },
+    { id: 'vinted', label: 'Vinted' },
+    { id: 'physique', label: 'En personne' }
+  ];
+
+  // Ce qui peut être personnalisé sur une pièce (`customization.options`). Jamais de prix :
+  // la personnalisation est un devis, répondu sous 72 h sur WhatsApp.
+  var CUSTOMIZATION_OPTIONS = [
+    { id: 'fleurs', label: 'Fleurs' },
+    { id: 'couleur', label: 'Couleur' },
+    { id: 'taille', label: 'Taille' },
+    { id: 'forme', label: 'Forme' }
+  ];
+
+  function findById(list, id) {
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
+
+  function categoryLabel(id, plural) {
+    var category = findById(CATEGORIES, id);
+    if (!category) return id || '';
+    return plural ? category.plural : category.label;
+  }
+
+  function audienceLabel(id) {
+    var audience = findById(AUDIENCES, id);
+    return audience ? audience.label : (id || '');
+  }
+
+  /* ── Liens WhatsApp ── */
+
   function whatsAppUrl(message) {
     return 'https://wa.me/33768728002?text=' + encodeURIComponent(message);
   }
 
-  // Demande d'achat : phrase neutre en genre (KD-78), la personne qui commande n'est pas
-  // forcément une femme. Un seul gabarit pour les trois entrées : lookbook, fiche, buy-circle.
-  function buildWhatsAppLink(pieceName) {
-    return whatsAppUrl('Bonjour, cette pièce m\'intéresse : ' + pieceName);
+  // Nom suivi de la référence quand elle existe : c'est ainsi que Prescilia reconnaît la pièce
+  // d'un coup d'œil dans la conversation (« Herbier Jaune Velours (BO-023) »).
+  function pieceLabel(product) {
+    return product.reference ? product.name + ' (' + product.reference + ')' : product.name;
   }
 
-  // Demande de personnalisation : message volontairement générique (couleur ou
-  // autre, la marque ne détaille pas les options) et neutre en genre.
-  function buildCustomizationLink(pieceName) {
-    return whatsAppUrl('Bonjour, j\'aimerais personnaliser cette pièce : ' + pieceName + '. Est-ce possible ?');
+  // Demande d'achat : phrase neutre en genre (KD-78), la personne qui commande n'est pas
+  // forcément une femme.
+  function buildWhatsAppLink(product) {
+    return whatsAppUrl('Bonjour, cette pièce m\'intéresse : ' + pieceLabel(product));
+  }
+
+  // Demande de personnalisation : devis sous 72 h, les options possibles sont sur la page.
+  function buildCustomizationLink(product) {
+    return whatsAppUrl('Bonjour, j\'aimerais personnaliser cette pièce : ' + pieceLabel(product) + '. Est-ce possible ?');
   }
 
   // Pièce vendue : elle reste visible pour donner envie, et le lien propose d'en
   // refaire une semblable — même base neutre que la demande d'achat.
-  function buildSimilarPieceLink(pieceName) {
-    return whatsAppUrl('Bonjour, cette pièce m\'intéresse : ' + pieceName + '. Est-il possible d\'en réaliser une semblable ?');
+  function buildSimilarPieceLink(product) {
+    return whatsAppUrl('Bonjour, cette pièce m\'intéresse : ' + pieceLabel(product) + '. Est-il possible d\'en réaliser une semblable ?');
   }
 
-  /* ── États d'une pièce ── */
+  /* ── États et règles ── */
 
-  // « disponible » : en vente ; « bientot » : annoncée, pas encore de photo ;
-  // « vendue » : partie, affichée sans prix ni commande. build.js refuse toute autre valeur.
-  var AVAILABILITIES = ['disponible', 'bientot', 'vendue'];
-
-  function isSold(product) {
-    return product.availability === 'vendue';
-  }
+  function isSold(product) { return product.availability === 'vendue'; }
+  function isReserved(product) { return product.availability === 'reservee'; }
+  function isDraft(product) { return product.availability === 'brouillon'; }
+  function isRetired(product) { return product.availability === 'retiree'; }
 
   function hasPhoto(product) {
     return !!(product.images && product.images.length);
   }
 
-  // Ce qui empêche une pièce d'être réellement « en vente » sur le site : sans photo elle
-  // prend le visuel d'attente (isComingSoon), et à prix fixe sans prix le build échoue
-  // (build.js). Partagé entre l'écran de gestion (interrupteur désactivé, raison affichée)
-  // et l'API (refus 422) : la même règle, écrite une fois. Renvoie une liste de codes.
+  function hasPrice(product) {
+    return typeof product.price === 'number' && product.price >= 0;
+  }
+
+  // Prix barré : un prix promotionnel n'a de sens que sous le prix de référence.
+  function hasPromo(product) {
+    return hasPrice(product) && typeof product.promoPrice === 'number' && product.promoPrice >= 0 && product.promoPrice < product.price;
+  }
+
+  // L'accueil ne montre que ce qui s'achète tout de suite.
+  function isVisibleOnHome(product) {
+    return product.availability === 'disponible';
+  }
+
+  // La boutique montre aussi les réservées et les vendues ; brouillons et retirées n'existent
+  // nulle part sur le site (pas même une page).
+  function isVisibleInShop(product) {
+    return product.availability === 'disponible' || product.availability === 'reservee' || product.availability === 'vendue';
+  }
+
+  // Ce qui empêche une pièce d'être mise en vente : une photo et un prix, sa règle à elle
+  // (« une photo suffit à rendre une pièce disponible »). Partagé entre l'écran de gestion
+  // (action désactivée, raison affichée), l'API (refus 422) et build.js (échec du build).
+  // Renvoie une liste de codes.
   function saleBlockers(product) {
     var blockers = [];
     if (!hasPhoto(product)) blockers.push('photo');
-    if (product.priceType === 'fixe' && !(typeof product.price === 'number' && product.price >= 0)) blockers.push('prix');
+    if (!hasPrice(product)) blockers.push('prix');
     return blockers;
   }
 
@@ -77,26 +173,128 @@
       : 'Renseignez un prix avant de mettre cette pièce en vente.';
   }
 
-  // Ordre d'affichage, lookbook comme écran de gestion : les pièces en vente ou à venir
-  // dans l'ordre du fichier, puis les vendues dans l'ordre du fichier. Deux filtres plutôt
-  // qu'un tri : l'ordre relatif est garanti quel que soit le moteur.
+  // Ordre de l'écran de gestion et de l'API : les pièces dans l'ordre du fichier, les vendues
+  // à la fin. Deux filtres plutôt qu'un tri : l'ordre relatif est garanti quel que soit le moteur.
   function sortForDisplay(products) {
     return products.filter(function(p) { return !isSold(p); })
       .concat(products.filter(isSold));
   }
 
-  function formatPrice(product) {
-    if (product.priceType === 'devis') return 'Sur devis';
-    return typeof product.price === 'number' ? product.price + '\u00a0€' : '';
+  // Comparaison des références telle que Prescilia les écrit : « BO023 », « bo-023 » et
+  // « BO 023 » désignent la même pièce. Casse, espaces, tirets et points ne comptent pas.
+  function normalizeReference(reference) {
+    return String(reference == null ? '' : reference).toUpperCase().replace(/[^A-Z0-9]/g, '');
   }
 
-  // Le champ est un texte libre saisi dans le CMS ; l'espace insécable évite un
-  // retour à la ligne entre « Dimensions » et les deux-points
+  /* ── Dates ── */
+
+  // Les dates du catalogue sont des jours (« 2026-10-01 »), sans heure ni fuseau : on les lit en
+  // heure locale pour qu'un 1er octobre ne devienne pas un 30 septembre quelque part.
+  function parseIsoDate(value) {
+    var match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
+    if (!match) return null;
+    var date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    if (date.getFullYear() !== Number(match[1]) || date.getMonth() !== Number(match[2]) - 1 || date.getDate() !== Number(match[3])) return null;
+    return date;
+  }
+
+  // « 1er octobre » / « 1er oct. » : le premier du mois prend « 1er », les autres jours le nombre.
+  function formatDay(date, short) {
+    var text = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: short ? 'short' : 'long' }).format(date);
+    return text.replace(/^1 /, '1er ');
+  }
+
+  function formatReservedUntil(product, short) {
+    var date = parseIsoDate(product.reservedUntil);
+    if (!date) return '';
+    return (short ? 'Jusqu\'au ' : 'Réservée jusqu\'au ') + formatDay(date, short);
+  }
+
+  /* ── Prix et textes ── */
+
+  // « 50 € », « 12,50 € » : entier tel quel, sinon deux décimales à la française.
+  function formatAmount(amount) {
+    if (typeof amount !== 'number' || !(amount >= 0)) return '';
+    var text = Number.isInteger(amount) ? String(amount) : amount.toFixed(2).replace('.', ',');
+    return text + '\u00a0€';
+  }
+
+  // Le prix affiché : le prix promotionnel s'il y en a un, sinon le prix.
+  function formatPrice(product) {
+    if (hasPromo(product)) return formatAmount(product.promoPrice);
+    return hasPrice(product) ? formatAmount(product.price) : '';
+  }
+
+  // Le prix barré, uniquement en promotion.
+  function formatOriginalPrice(product) {
+    return hasPromo(product) ? formatAmount(product.price) : '';
+  }
+
+  // Le champ est un texte libre ; l'espace insécable évite un retour à la ligne entre
+  // « Dimensions » et les deux-points.
   function formatDimensions(dimensions) {
     return dimensions ? 'Dimensions\u00a0: ' + dimensions : '';
   }
 
-  /* ── Rendu du lookbook (HTML généré au déploiement par build.js) ── */
+  /* ── Ordre et sélection ── */
+
+  var SHOP_ORDER = { disponible: 0, reservee: 1, vendue: 2 };
+
+  function createdTime(product) {
+    var date = parseIsoDate(product.createdAt);
+    return date ? date.getTime() : 0;
+  }
+
+  // Tri stable : à état et date égaux, l'ordre du fichier départage.
+  function byIndexed(compare) {
+    return function(a, b) { return compare(a.product, b.product) || a.index - b.index; };
+  }
+
+  function indexed(products) {
+    return products.map(function(product, index) { return { product: product, index: index }; });
+  }
+
+  function unwrap(list) {
+    return list.map(function(entry) { return entry.product; });
+  }
+
+  // Ordre de la boutique : disponibles, puis réservées, puis vendues ; les plus récentes
+  // d'abord dans chaque groupe.
+  function sortForShop(products) {
+    var visible = indexed(products).filter(function(entry) { return isVisibleInShop(entry.product); });
+    visible.sort(byIndexed(function(a, b) {
+      return (SHOP_ORDER[a.availability] - SHOP_ORDER[b.availability]) || (createdTime(b) - createdTime(a));
+    }));
+    return unwrap(visible);
+  }
+
+  // Les `count` dernières pièces en vente : la collection automatique « Nouveautés », et le repli
+  // de l'accueil quand rien n'est mis en avant. Un compte, pas une fenêtre de jours : la section
+  // ne se vide jamais.
+  function latest(products, count) {
+    var onSale = indexed(products).filter(function(entry) { return isVisibleOnHome(entry.product); });
+    onSale.sort(byIndexed(function(a, b) { return createdTime(b) - createdTime(a); }));
+    return unwrap(onSale).slice(0, count);
+  }
+
+  // Les pièces mises en avant sur l'accueil, en vente seulement (une pièce réservée ou vendue en
+  // sort d'elle-même), dans l'ordre choisi ; si aucune, les dernières ajoutées.
+  function featuredPieces(products, fallbackCount) {
+    var featured = indexed(products).filter(function(entry) { return entry.product.featured === true && isVisibleOnHome(entry.product); });
+    featured.sort(byIndexed(function(a, b) {
+      return (typeof a.featuredOrder === 'number' ? a.featuredOrder : Infinity) - (typeof b.featuredOrder === 'number' ? b.featuredOrder : Infinity);
+    }));
+    return featured.length ? unwrap(featured) : latest(products, fallbackCount);
+  }
+
+  // Les pièces en vente d'une collection, les plus récentes d'abord.
+  function collectionPieces(products, collectionId) {
+    return latest(products.filter(function(product) {
+      return Array.isArray(product.collections) && product.collections.indexOf(collectionId) !== -1;
+    }), Infinity);
+  }
+
+  /* ── Rendu (HTML généré au déploiement par build.js) ── */
 
   function escapeHtml(value) {
     return String(value)
@@ -106,115 +304,112 @@
       .replace(/"/g, '&quot;');
   }
 
-  // Sveltia écrit les chemins d'images avec un slash initial (/images/…) ;
-  // le site est servi depuis la racine, un chemin relatif suffit partout.
+  // Les chemins d'images du fichier sont relatifs à la racine (« images/… »), parfois écrits
+  // avec un slash initial par l'ancien CMS ; les pages vivent à plusieurs profondeurs
+  // (/, /boutique/, /boutique/<id>/), on sert donc toujours un chemin absolu.
   function normalizeImagePath(src) {
     return String(src).replace(/^\/+/, '');
   }
 
-  // Numérotation « No. 01 » : deux chiffres minimum, comme le HTML d'origine
-  function pad2(n) {
-    return n < 10 ? '0' + n : String(n);
+  function imageUrl(image) {
+    return '/' + normalizeImagePath(image.src);
   }
 
-  // Une pièce « bientôt », ou sans photo quel que soit son état, prend le visuel
-  // d'attente ; le dégradé dépend de la catégorie (voir .lookbook-card-visual--*)
-  function isComingSoon(product) {
-    return product.availability === 'bientot' || !hasPhoto(product);
+  function pieceUrl(product) {
+    return '/boutique/' + encodeURIComponent(product.id) + '/';
   }
 
-  var SOON_VISUAL_BY_CATEGORY = {
-    'pendentif': 'lookbook-card-visual--pendant',
-    'bracelet': 'lookbook-card-visual--bracelet',
-    'bague': 'lookbook-card-visual--ring'
-  };
-
-  // La classe reste exactement « lookbook-card » sur toutes les cartes : check-site.js
-  // compte `class="lookbook-card"` pour comparer le site au dépôt. L'état est porté par
-  // data-availability, qui sert aussi d'accroche CSS (photo d'une pièce vendue).
-  function renderLookbookCard(product, index, indent) {
+  // La carte d'une pièce : boutique et « Pièces mises en avant » de l'accueil. La classe reste
+  // exactement « shop-card » sur toutes les cartes : check-site.js compte `class="shop-card"`
+  // pour comparer le site au dépôt. L'état et les critères de filtre sont portés par des
+  // attributs data-*, qui servent d'accroche à shop.js (filtres) et au CSS (photo d'une vendue).
+  function renderShopCard(product, indent) {
     indent = indent || '';
     var name = escapeHtml(product.name);
-    var open = '<div class="lookbook-card" data-availability="' + escapeHtml(product.availability) + '"';
-    var label = indent + '  <span class="lookbook-card-label">No. ' + pad2(index + 1) + ' — ' + name + '</span>';
-
-    if (isComingSoon(product)) {
-      var visual = 'lookbook-card-visual lookbook-card-visual--soon';
-      if (SOON_VISUAL_BY_CATEGORY[product.category]) visual += ' ' + SOON_VISUAL_BY_CATEGORY[product.category];
-      return [
-        indent + open + '>',
-        indent + '  <div class="' + visual + '">',
-        indent + '    <span class="lookbook-card-soon">' + (isSold(product) ? 'Vendue' : 'Bientôt') + '</span>',
-        indent + '  </div>',
-        label,
-        indent + '</div>'
-      ].join('\n');
-    }
-
+    var url = escapeHtml(pieceUrl(product));
     var image = product.images[0];
-    // Détails lus par la lightbox (légende sous la photo agrandie) ; absents si vides
-    var details = '';
-    if (product.desc) details += ' data-desc="' + escapeHtml(product.desc) + '"';
-    if (product.dimensions) details += ' data-dimensions="' + escapeHtml(product.dimensions) + '"';
+    var collections = (product.collections || []).map(escapeHtml).join(' ');
     var lines = [
-      indent + open + ' data-piece-name="' + name + '"' + details + '>',
-      indent + '  <img src="' + escapeHtml(normalizeImagePath(image.src)) + '" alt="' + escapeHtml(image.alt) + '" loading="lazy">'
+      indent + '<li class="shop-card" data-id="' + escapeHtml(product.id) + '" data-availability="' + escapeHtml(product.availability) + '"' +
+        ' data-category="' + escapeHtml(product.category) + '" data-audience="' + escapeHtml(product.audience) + '"' +
+        ' data-collections="' + collections + '">',
+      indent + '  <a class="shop-card-photo" href="' + url + '" aria-label="' + name + '">',
+      indent + '    <img src="' + escapeHtml(imageUrl(image)) + '" alt="' + escapeHtml(image.alt) + '" loading="lazy">'
     ];
-
-    // Vendue : la photo reste (elle donne envie), sans prix ni commande ; le lien propose une
-    // pièce semblable. Classe distincte du CTA de commande : tooplate-ivory-script.js réécrit
-    // le href de tout .lookbook-card-cta au chargement. Pas de badge « Personnalisable » :
-    // le lien dit déjà la même chose.
-    if (isSold(product)) {
-      lines.push(
-        label,
-        indent + '  <span class="lookbook-card-price lookbook-card-price--sold">Vendue</span>',
-        indent + '  <a href="' + escapeHtml(buildSimilarPieceLink(product.name)) + '" class="lookbook-card-similar cta-link" target="_blank" rel="noopener noreferrer" aria-label="Demander une pièce semblable à ' + name + ' sur WhatsApp">Une pièce semblable ?</a>',
-        indent + '</div>'
-      );
-      return lines.join('\n');
-    }
-
-    if (product.customizable === true) {
-      // draggable="false" : un <a> posé sur la photo ne doit pas déclencher le drag natif du lien
-      lines.push(indent + '  <a href="' + escapeHtml(buildCustomizationLink(product.name)) + '" class="lookbook-card-badge" target="_blank" rel="noopener noreferrer" draggable="false" aria-label="Demander une personnalisation pour ' + name + ' sur WhatsApp">Personnalisable</a>');
-    }
+    if (isReserved(product)) lines.push(indent + '    <span class="shop-card-badge shop-card-badge--reserved">Réservée</span>');
+    if (isSold(product)) lines.push(indent + '    <span class="shop-card-badge shop-card-badge--sold">Vendue</span>');
     lines.push(
-      label,
-      indent + '  <span class="lookbook-card-price">' + escapeHtml(formatPrice(product)) + '</span>',
-      indent + '  <a href="' + escapeHtml(buildWhatsAppLink(product.name)) + '" class="lookbook-card-cta cta-link" target="_blank" rel="noopener noreferrer">Commander</a>',
-      indent + '</div>'
+      indent + '  </a>',
+      indent + '  <div class="shop-card-body">',
+      indent + '    <a class="shop-card-name" href="' + url + '">' + name + '</a>'
     );
+    if (product.reference) lines.push(indent + '    <span class="shop-card-ref">' + escapeHtml(product.reference) + '</span>');
+
+    if (isSold(product)) {
+      // Vendue : pas de prix, la photo reste (elle donne envie) et le lien propose une pièce semblable
+      lines.push(indent + '    <a class="shop-card-similar cta-link" href="' + escapeHtml(buildSimilarPieceLink(product)) + '" target="_blank" rel="noopener noreferrer">Une pièce semblable ?</a>');
+    } else {
+      var price = indent + '    <p class="shop-card-price">';
+      if (hasPromo(product)) price += '<s class="shop-card-price-old">' + escapeHtml(formatOriginalPrice(product)) + '</s> ';
+      price += '<span class="shop-card-price-now">' + escapeHtml(formatPrice(product)) + '</span></p>';
+      lines.push(price);
+      if (isReserved(product)) {
+        lines.push(indent + '    <p class="shop-card-until">' + escapeHtml(formatReservedUntil(product, true)) + '</p>');
+      } else {
+        // « Ajouter » (au panier) arrive avec KD-64 ; d'ici là le bouton mène à la page de la pièce
+        lines.push(indent + '    <a class="shop-card-action" href="' + url + '">Voir la pièce</a>');
+      }
+    }
+    lines.push(indent + '  </div>', indent + '</li>');
     return lines.join('\n');
   }
 
-  function renderLookbookCards(products, indent) {
-    return products.map(function(product, index) {
-      return renderLookbookCard(product, index, indent);
-    }).join('\n');
-  }
-
-  function renderLookbookCount(products, indent) {
-    return (indent || '') + '<span class="lookbook-count">01 — ' + pad2(products.length) + '</span>';
+  function renderShopCards(products, indent) {
+    return products.map(function(product) { return renderShopCard(product, indent); }).join('\n');
   }
 
   return {
     AVAILABILITIES: AVAILABILITIES,
+    STATE_LABELS: STATE_LABELS,
+    CATEGORIES: CATEGORIES,
+    AUDIENCES: AUDIENCES,
+    CHANNELS: CHANNELS,
+    CUSTOMIZATION_OPTIONS: CUSTOMIZATION_OPTIONS,
+    categoryLabel: categoryLabel,
+    audienceLabel: audienceLabel,
+    pieceLabel: pieceLabel,
     buildWhatsAppLink: buildWhatsAppLink,
     buildCustomizationLink: buildCustomizationLink,
     buildSimilarPieceLink: buildSimilarPieceLink,
-    formatPrice: formatPrice,
-    formatDimensions: formatDimensions,
-    escapeHtml: escapeHtml,
-    normalizeImagePath: normalizeImagePath,
-    isComingSoon: isComingSoon,
     isSold: isSold,
+    isReserved: isReserved,
+    isDraft: isDraft,
+    isRetired: isRetired,
     hasPhoto: hasPhoto,
+    hasPrice: hasPrice,
+    hasPromo: hasPromo,
+    isVisibleOnHome: isVisibleOnHome,
+    isVisibleInShop: isVisibleInShop,
     saleBlockers: saleBlockers,
     describeSaleBlockers: describeSaleBlockers,
     sortForDisplay: sortForDisplay,
-    renderLookbookCard: renderLookbookCard,
-    renderLookbookCards: renderLookbookCards,
-    renderLookbookCount: renderLookbookCount
+    sortForShop: sortForShop,
+    latest: latest,
+    featuredPieces: featuredPieces,
+    collectionPieces: collectionPieces,
+    normalizeReference: normalizeReference,
+    parseIsoDate: parseIsoDate,
+    formatDay: formatDay,
+    formatReservedUntil: formatReservedUntil,
+    formatAmount: formatAmount,
+    formatPrice: formatPrice,
+    formatOriginalPrice: formatOriginalPrice,
+    formatDimensions: formatDimensions,
+    escapeHtml: escapeHtml,
+    normalizeImagePath: normalizeImagePath,
+    imageUrl: imageUrl,
+    pieceUrl: pieceUrl,
+    renderShopCard: renderShopCard,
+    renderShopCards: renderShopCards
   };
 }));

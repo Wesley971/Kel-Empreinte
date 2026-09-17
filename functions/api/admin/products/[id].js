@@ -1,15 +1,16 @@
 /* PATCH /api/admin/products/:id — changer l'état d'une pièce, en un commit sur le dépôt.
 
-   Corps attendu : { "availability": "disponible" | "bientot" | "vendue" } et rien d'autre.
-   Un seul champ modifiable : c'est l'écran de bascule de KD-92, pas un éditeur (KD-93).
+   Corps attendu : { "availability": "disponible" | "vendue" | "brouillon" | "retiree" } et rien
+   d'autre. Un seul champ modifiable : c'est l'écran de bascule de KD-92, pas un éditeur (KD-93).
+   « reservee » est refusé ici : réserver demande une date de fin, c'est KD-98 qui l'apporte.
 
    Réponses :
    - 200 { product, commit }      : écrit — le site suivra au prochain déploiement (1 à 2 min)
    - 200 { product, unchanged }   : déjà dans cet état, rien à écrire
    - 400                          : corps illisible ou autre champ que availability
    - 404                          : pièce inconnue
-   - 422                          : état inconnu, ou pièce qui ne peut pas passer « en vente »
-                                    (sans photo, ou à prix fixe sans prix) — les règles de
+   - 422                          : état inconnu ou « reservee », ou pièce qui ne peut pas passer
+                                    « en vente » (sans photo ou sans prix) — les règles de
                                     catalog.js, celles que le site et build.js appliquent
    - 409 / 502 / 503              : GitHub (voir catalogFailure)
 
@@ -44,6 +45,9 @@ export async function onRequest(context) {
   if (AVAILABILITIES.indexOf(body.availability) === -1) {
     return error(422, 'État inconnu. Valeurs possibles : ' + AVAILABILITIES.join(', ') + '.');
   }
+  if (body.availability === 'reservee') {
+    return error(422, 'Réserver une pièce demande une date de fin : cette action arrive bientôt dans l\'espace de gestion.');
+  }
 
   try {
     return await setAvailability(context.env, context.params.id, body.availability);
@@ -67,6 +71,10 @@ async function setAvailability(env, id, availability) {
 
     const previous = product.availability;
     product.availability = availability;
+    // Le fichier doit rester valide pour build.js : la date de réservation n'existe que sur une
+    // pièce réservée, la vente que sur une pièce vendue. Quitter l'état retire la donnée.
+    if (availability !== 'reservee') delete product.reservedUntil;
+    if (availability !== 'vendue') delete product.sale;
     try {
       const { commit } = await saveProducts(env, products, { sha, message: commitMessage(product, previous) });
       return json({ product, commit });

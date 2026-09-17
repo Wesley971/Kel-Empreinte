@@ -1,59 +1,72 @@
 [
   {
     "id": "herbier-jaune-velours",
+    "reference": null,
     "name": "Herbier Jaune Velours",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
-    "price": 50,
-    "priceConfirmed": false,
+    "price": 16,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-herbier-jaune-velours.jpg",
         "alt": "Boucles d'oreilles herbier jaune sur fond bleu nuit"
       }
     ],
-    "featured": true,
-    "featuredOrder": 2,
-    "heading": "Boucles d'Oreilles<br>Herbier Jaune Velours",
-    "plainName": "Boucles d'Oreilles Herbier Jaune Velours",
-    "badge": "Pièce Signature",
-    "desc": "Un assemblage de fleurs séchées jaunes prises dans la résine, à la forme organique et aux éclats dorés. Façonnées à la main dans mon atelier.",
-    "specs": "Résine et fleurs séchées, crochets dorés — confectionnée à la demande, conçue en France."
+    "featured": false,
+    "featuredOrder": null,
+    "createdAt": "2026-09-11"
   },
   {
     "id": "transparente-cuivre-bordeaux",
+    "reference": null,
     "name": "Transparente Cuivre & Bordeaux",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
     "price": 17,
-    "priceConfirmed": false,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-transparente-cuivre-bordeaux.jpg",
         "alt": "Boucles d'oreilles transparentes à éclats cuivrés et perle bordeaux"
       }
     ],
-    "featured": true,
-    "featuredOrder": 3,
-    "heading": "Boucles d'Oreilles<br>Transparente Cuivre &amp; Bordeaux",
-    "plainName": "Boucles d'Oreilles Transparente Cuivre & Bordeaux",
-    "badge": "Pièce Signature",
-    "desc": "Une composition transparente à éclats cuivrés, prolongée d'une perle bordeaux. Résine façonnée à la main dans mon atelier.",
-    "specs": "Résine et fleurs séchées, crochets dorés — créée sur commande, fabrication 100\u00a0% française."
+    "featured": false,
+    "featuredOrder": null,
+    "createdAt": "2026-09-11"
   },
   {
     "id": "leopard-rose-degrade",
+    "reference": null,
     "name": "Léopard Rose Dégradé",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
     "price": 18,
-    "priceConfirmed": false,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-leopard-rose-degrade.jpg",
@@ -62,21 +75,24 @@
     ],
     "featured": false,
     "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
+    "createdAt": "2026-09-11"
   },
   {
     "id": "orange-alveole-automne",
+    "reference": null,
     "name": "Orange Alvéole Automne",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
     "price": 18,
-    "priceConfirmed": false,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-orange-alveole-automne.jpg",
@@ -85,21 +101,24 @@
     ],
     "featured": false,
     "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
+    "createdAt": "2026-09-11"
   },
   {
     "id": "dorees-perle-emeraude",
+    "reference": null,
     "name": "Dorées Perle Émeraude",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
     "price": 17,
-    "priceConfirmed": false,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-dorees-perle-emeraude.jpg",
@@ -108,21 +127,24 @@
     ],
     "featured": false,
     "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
+    "createdAt": "2026-09-11"
   },
   {
     "id": "triple-cercle-turquoise",
+    "reference": null,
     "name": "Triple Cercle Turquoise",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
     "price": 20,
-    "priceConfirmed": false,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-triple-cercle-turquoise.jpg",
@@ -131,21 +153,24 @@
     ],
     "featured": false,
     "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
+    "createdAt": "2026-09-11"
   },
   {
     "id": "goutte-doree-malachite",
+    "reference": null,
     "name": "Goutte Dorée Malachite",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
     "price": 14,
-    "priceConfirmed": false,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-goutte-doree-malachite.jpg",
@@ -154,21 +179,24 @@
     ],
     "featured": false,
     "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
+    "createdAt": "2026-09-11"
   },
   {
     "id": "triple-disque-corail",
+    "reference": null,
     "name": "Triple Disque Corail",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
     "price": 20,
-    "priceConfirmed": false,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-triple-disque-corail.jpg",
@@ -177,21 +205,24 @@
     ],
     "featured": false,
     "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
+    "createdAt": "2026-09-11"
   },
   {
     "id": "herbier-perle-rouge",
+    "reference": null,
     "name": "Herbier Perle Rouge",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
     "price": 17,
-    "priceConfirmed": false,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-herbier-perle-rouge.jpg",
@@ -200,21 +231,24 @@
     ],
     "featured": false,
     "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
+    "createdAt": "2026-09-11"
   },
   {
     "id": "violette-feuille-doree",
+    "reference": null,
     "name": "Violette Feuille Dorée",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
     "price": 18,
-    "priceConfirmed": false,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-violette-feuille-doree.jpg",
@@ -223,21 +257,24 @@
     ],
     "featured": false,
     "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
+    "createdAt": "2026-09-11"
   },
   {
     "id": "orange-fuchsia-organique",
+    "reference": null,
     "name": "Orange Fuchsia Organique",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
     "price": 16,
-    "priceConfirmed": false,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-orange-fuchsia-organique.jpg",
@@ -246,21 +283,24 @@
     ],
     "featured": false,
     "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
+    "createdAt": "2026-09-11"
   },
   {
     "id": "geometrique-paillettes",
+    "reference": null,
     "name": "Géométrique Paillettes",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
     "price": 17,
-    "priceConfirmed": false,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-geometrique-paillettes.jpg",
@@ -269,21 +309,24 @@
     ],
     "featured": false,
     "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
+    "createdAt": "2026-09-11"
   },
   {
     "id": "violette-fleurie",
+    "reference": null,
     "name": "Violette Fleurie",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
     "price": 24,
-    "priceConfirmed": true,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-violette-fleurs.jpg",
@@ -292,21 +335,24 @@
     ],
     "featured": false,
     "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
+    "createdAt": "2026-08-20"
   },
   {
     "id": "feuille-rose",
+    "reference": null,
     "name": "Feuille Rose",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
     "price": 22,
-    "priceConfirmed": true,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-feuille-rose.jpg",
@@ -315,48 +361,24 @@
     ],
     "featured": false,
     "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
-  },
-  {
-    "id": "noeud-automne",
-    "name": "Nœud Automne",
-    "category": "noeud",
-    "availability": "disponible",
-    "customizable": false,
-    "priceType": "devis",
-    "price": null,
-    "priceConfirmed": true,
-    "images": [
-      {
-        "src": "images/noeud-automne-1.jpg",
-        "alt": "Nœud papillon Automne, pièce signature Kel'Empreinte"
-      },
-      {
-        "src": "images/noeud-automne-2.jpg",
-        "alt": "Nœud papillon Automne, vue rapprochée sur les éclats dorés et fleurs séchées"
-      }
-    ],
-    "featured": true,
-    "featuredOrder": 1,
-    "heading": "Le Nœud Papillon<br>Automne",
-    "plainName": "Le Nœud Papillon Automne",
-    "badge": "Pièce Signature",
-    "desc": "Composé de fleurs séchées prises dans la résine et rehaussé d'éclats dorés. Fixation en suédine, façonné à la main dans mon atelier.",
-    "specs": "Résine et fleurs séchées, fixation en suédine — pièce réalisée sur commande, fabriquée en France."
+    "createdAt": "2026-08-20"
   },
   {
     "id": "or-corail",
+    "reference": null,
     "name": "Or Corail",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
     "price": 24,
-    "priceConfirmed": true,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-or-corail.jpg",
@@ -365,21 +387,24 @@
     ],
     "featured": false,
     "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
+    "createdAt": "2026-08-20"
   },
   {
     "id": "vert-rose",
+    "reference": null,
     "name": "Vert & Rose",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
     "price": 22,
-    "priceConfirmed": true,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-vert-rose.jpg",
@@ -388,21 +413,24 @@
     ],
     "featured": false,
     "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
+    "createdAt": "2026-08-20"
   },
   {
     "id": "blanc-vert",
+    "reference": null,
     "name": "Blanc & Vert",
     "category": "boucles-oreilles",
+    "audience": "mixte",
+    "collections": [],
     "availability": "disponible",
-    "customizable": false,
-    "priceType": "fixe",
     "price": 22,
-    "priceConfirmed": true,
+    "promoPrice": null,
+    "customization": {
+      "options": []
+    },
+    "desc": "",
+    "materials": [],
+    "dimensions": null,
     "images": [
       {
         "src": "images/boucles-blanc-vert.jpg",
@@ -411,118 +439,6 @@
     ],
     "featured": false,
     "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
-  },
-  {
-    "id": "pendentif-resine",
-    "name": "Pendentif Résine",
-    "category": "pendentif",
-    "availability": "bientot",
-    "customizable": false,
-    "priceType": "fixe",
-    "price": null,
-    "priceConfirmed": true,
-    "images": [],
-    "featured": false,
-    "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
-  },
-  {
-    "id": "pendentif-fleur-sechee",
-    "name": "Pendentif Fleur Séchée",
-    "category": "pendentif",
-    "availability": "bientot",
-    "customizable": false,
-    "priceType": "fixe",
-    "price": null,
-    "priceConfirmed": true,
-    "images": [],
-    "featured": false,
-    "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
-  },
-  {
-    "id": "bracelet-fin",
-    "name": "Bracelet Fin",
-    "category": "bracelet",
-    "availability": "bientot",
-    "customizable": false,
-    "priceType": "fixe",
-    "price": null,
-    "priceConfirmed": true,
-    "images": [],
-    "featured": false,
-    "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
-  },
-  {
-    "id": "bracelet-resine",
-    "name": "Bracelet Résine",
-    "category": "bracelet",
-    "availability": "bientot",
-    "customizable": false,
-    "priceType": "fixe",
-    "price": null,
-    "priceConfirmed": true,
-    "images": [],
-    "featured": false,
-    "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
-  },
-  {
-    "id": "bague-fleur",
-    "name": "Bague Fleur",
-    "category": "bague",
-    "availability": "bientot",
-    "customizable": false,
-    "priceType": "fixe",
-    "price": null,
-    "priceConfirmed": true,
-    "images": [],
-    "featured": false,
-    "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
-  },
-  {
-    "id": "bague-resine",
-    "name": "Bague Résine",
-    "category": "bague",
-    "availability": "bientot",
-    "customizable": false,
-    "priceType": "fixe",
-    "price": null,
-    "priceConfirmed": true,
-    "images": [],
-    "featured": false,
-    "featuredOrder": null,
-    "heading": "",
-    "plainName": "",
-    "badge": "Pièce Signature",
-    "desc": "",
-    "specs": ""
+    "createdAt": "2026-08-20"
   }
 ]

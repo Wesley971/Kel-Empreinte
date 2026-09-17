@@ -1,0 +1,23 @@
+[
+  {
+    "id": "la-maison-du-noeud-pap",
+    "name": "La Maison Du Nœud Pap",
+    "order": 1,
+    "tagline": null,
+    "cover": null
+  },
+  {
+    "id": "tresors-autour-du-cou",
+    "name": "Trésors Autour Du Cou",
+    "order": 2,
+    "tagline": null,
+    "cover": null
+  },
+  {
+    "id": "parures",
+    "name": "Parures",
+    "order": 3,
+    "tagline": null,
+    "cover": null
+  }
+]
