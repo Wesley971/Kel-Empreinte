@@ -719,6 +719,14 @@
 .home-band-track .shop-card-photo { border-radius: 20px; }
 .home-band-track .shop-card-name { font-size: 16px; }
 
+/* Aucune bande (catalogue sans pièce en vente) : la section disparaît plutôt que de rester vide */
+.home-collections:not(:has(.home-band)) { display: none; }
+
+/* Couverture facultative d'une collection : première tuile de la bande */
+.home-band-cover { flex: 0 0 240px; scroll-snap-align: start; }
+.home-band-cover a { display: block; aspect-ratio: 1 / 1; border-radius: 20px; overflow: hidden; background: var(--oat-deep); }
+.home-band-cover img { width: 100%; height: 100%; object-fit: cover; }
+
 /* ═══════════════════════════════════════════════
    PIED DE PAGE (boutique, pages pièce)
    ═══════════════════════════════════════════════ */
@@ -836,7 +844,7 @@
   .home-featured .shop-card-name { font-size: 17px; }
   .home-band + .home-band { margin-top: 48px; }
   .home-band-track { gap: 14px; }
-  .home-band-track .shop-card { flex-basis: 176px; }
+  .home-band-track .shop-card, .home-band-cover { flex-basis: 176px; }
 
   .site-footer { padding: 48px 16px 32px; }
   .site-footer-links { gap: 20px; }

@@ -1,5 +1,8 @@
 /* Build du site — vérifie le catalogue et génère les pages depuis data/products.json.
 
+   Trois sorties : les régions de l'accueil (index.html, réécrit en place), la boutique et ses
+   pages pièce (boutique/, dossier généré et ignoré par git, vidé à chaque build) et sitemap.xml.
+
    Exécuté par Cloudflare Pages à chaque déploiement (build command : `node build.js`,
    output et root directory laissés vides = racine du dépôt, Node figé par .node-version).
    Lancer `node build.js` en local pour rafraîchir le HTML avant de committer.
@@ -520,6 +523,69 @@ function renderPiecePage(page, product, collections) {
   return replaceRegion(html, 'piece', indentLines(renderPieceArticle(product, collections), '  '), page.eol, page.name);
 }
 
+/* Accueil : pièces mises en avant, bandes de collections */
+
+var HOME_FEATURED_FALLBACK = 4;   // dernières ajoutées quand rien n'est mis en avant
+var HOME_LATEST_COUNT = 8;        // taille de « Nouveautés »
+var HOME_BAND_MAX = 8;            // pièces par bande de collection
+
+var HOME_EMPTY = '<p class="shop-grid-empty">Toutes les pièces ont trouvé preneur — de nouvelles créations arrivent. ' +
+  'En attendant, <a href="https://wa.me/33768728002" class="cta-link" target="_blank" rel="noopener noreferrer">écrivez-moi sur WhatsApp</a>.</p>';
+
+// Les pièces qu'elle a cochées, en vente ; sinon les dernières ajoutées, et le titre le dit
+function renderHomeFeatured(products, indent) {
+  var chosen = products.some(function(p) { return p.featured === true && catalog.isVisibleOnHome(p); });
+  var pieces = catalog.featuredPieces(products, HOME_FEATURED_FALLBACK);
+  var lines = [
+    indent + '<div class="home-section-head">',
+    indent + '  <div>',
+    indent + '    <h2 class="home-section-title">' + (chosen ? 'Pièces mises en avant' : 'Les dernières créations') + '</h2>'
+  ];
+  if (!chosen && pieces.length) lines.push(indent + '    <p class="home-section-note">Les dernières pièces arrivées à l\'atelier.</p>');
+  lines.push(
+    indent + '  </div>',
+    indent + '  <a href="/boutique/" class="cta-link">Toute la boutique</a>',
+    indent + '</div>'
+  );
+  if (pieces.length) {
+    lines.push(indent + '<ul class="shop-grid">', catalog.renderShopCards(pieces, indent + '  '), indent + '</ul>');
+  } else {
+    lines.push(indent + HOME_EMPTY);
+  }
+  return lines.join('\n');
+}
+
+function renderBand(title, tagline, cover, pieces, href, linkText, indent) {
+  var lines = [
+    indent + '<div class="home-band">',
+    indent + '  <div class="home-band-head">',
+    indent + '    <h2 class="home-band-title">' + esc(title) + '</h2>',
+    indent + '    <a class="cta-link" href="' + esc(href) + '">' + esc(linkText) + '</a>'
+  ];
+  if (tagline) lines.push(indent + '    <p class="home-band-tagline">' + esc(tagline) + '</p>');
+  lines.push(indent + '  </div>', indent + '  <ul class="home-band-track">');
+  if (cover) {
+    lines.push(indent + '    <li class="home-band-cover"><a href="' + esc(href) + '" aria-label="' + esc(linkText) + '"><img src="' + esc('/' + catalog.normalizeImagePath(cover)) + '" alt="" loading="lazy"></a></li>');
+  }
+  lines.push(catalog.renderShopCards(pieces, indent + '    '), indent + '  </ul>', indent + '</div>');
+  return lines.join('\n');
+}
+
+// « Nouveautés » d'abord (automatique), puis les collections dans leur ordre ; une collection sans
+// pièce en vente n'a pas de bande. Rien du tout → commentaire, la section se masque (shop.css).
+function renderHomeCollections(products, collections, indent) {
+  var bands = [];
+  var latest = catalog.latest(products, HOME_LATEST_COUNT);
+  if (latest.length) bands.push(renderBand('Nouveautés', null, null, latest, '/boutique/', 'Toute la boutique', indent));
+  collections.forEach(function(collection) {
+    var pieces = catalog.collectionPieces(products, collection.id).slice(0, HOME_BAND_MAX);
+    if (!pieces.length) return;
+    bands.push(renderBand(collection.name, collection.tagline, collection.cover, pieces,
+      '/boutique/?collection=' + encodeURIComponent(collection.id), 'Voir la collection', indent));
+  });
+  return bands.join('\n');
+}
+
 /* Plan du site */
 
 function renderSitemap(shown) {
@@ -571,11 +637,10 @@ var indexEol = eolOf(indexHtml);
 
 // Tout est rendu en mémoire avant la première écriture : un échec ne laisse rien à moitié généré.
 
-// Transitoire (lot A de KD-97) : la section « La Collection » de l'accueil est encore en place,
-// elle reçoit les cartes de la boutique jusqu'à la refonte de l'accueil (lot C).
-var indexOutput = indexHtml;
-indexOutput = replaceRegion(indexOutput, 'lookbook-count', '      <span class="lookbook-count">' + pluralize(shown.length, 'pièce', 'pièces') + '</span>', indexEol, 'index.html');
-indexOutput = replaceRegion(indexOutput, 'lookbook-cards', shown.length ? catalog.renderShopCards(shown, '      ') : '      ' + SHOP_EMPTY, indexEol, 'index.html');
+var indexPage = { name: 'index.html', text: indexHtml, eol: indexEol };
+indexPage = fill(indexPage, 'home-featured', renderHomeFeatured(products, '    '), '    ');
+indexPage = fill(indexPage, 'home-collections', renderHomeCollections(products, collections, '    '), '    ');
+var indexOutput = indexPage.text;
 
 var shopPage = renderShopPage(readTemplate('boutique.html'), shown, collections);
 var pieceTemplate = readTemplate('piece.html');
@@ -594,8 +659,8 @@ var counts = {};
 products.forEach(function(product) { counts[product.availability] = (counts[product.availability] || 0) + 1; });
 console.log('build.js : catalogue — ' + products.length + ' pièces (' +
   catalog.AVAILABILITIES.filter(function(s) { return counts[s]; }).map(function(s) { return counts[s] + ' ' + s; }).join(', ') + ')');
-console.log('build.js : boutique — boutique/index.html + ' + piecePages.length + ' pages pièce, sitemap.xml (' + (shown.length + 2) + ' URL)' +
-  (indexOutput === indexHtml ? ', index.html déjà à jour' : ', index.html mis à jour'));
+console.log('build.js : pages — accueil (' + catalog.featuredPieces(products, HOME_FEATURED_FALLBACK).length + ' pièces en avant), boutique/index.html + ' +
+  piecePages.length + ' pages pièce, sitemap.xml (' + (shown.length + 2) + ' URL)' + (indexOutput === indexHtml ? ', index.html déjà à jour' : ', index.html mis à jour'));
 
 /* ── Branche du déploiement, pour les Functions ── */
 
