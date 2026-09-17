@@ -307,6 +307,7 @@ function replaceRegion(html, name, content, eol, file) {
 function eolOf(text) {
   return text.indexOf('\r\n') !== -1 ? '\r\n' : '\n';
 }
+
 /* ── Rendu des pages ── */
 
 var SITE_URL = 'https://kel-empreinte.pages.dev';

@@ -29,7 +29,7 @@
   // Libellés des états et des types : ceux de catalog.js, partagés avec le site (catalog absent :
   // le démarrage, plus bas, affiche l'erreur au lieu de planter ici)
   var STATE_LABELS = catalog ? catalog.STATE_LABELS : {};
-  var BLOCKER_WORDS = { photo: 'photo', prix: 'prix' };
+  var BLOCKER_WORDS = { photo: 'photo', prix: 'prix', nom: 'nom', type: 'type', public: 'public' };
   var NETWORK_MESSAGE = 'Connexion impossible. Vérifiez votre réseau, puis rechargez la page : elle affichera l\'état réellement enregistré.';
 
   var els = {
@@ -171,7 +171,7 @@
     var hint = row.querySelector('.kel-row-hint');
     toggle.disabled = blockers.length > 0;
     if (blockers.length) {
-      hint.textContent = 'À compléter : ' + blockers.map(function (b) { return BLOCKER_WORDS[b]; }).join(' et ') + '.';
+      hint.textContent = 'À compléter : ' + blockers.map(function (b) { return BLOCKER_WORDS[b] || b; }).join(', ').replace(/, ([^,]*)$/, ' et $1') + '.';
       show(hint);
     } else {
       hide(hint);

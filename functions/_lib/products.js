@@ -19,6 +19,7 @@ export const PRODUCTS_FILE = 'data/products.json';
 
 export const AVAILABILITIES = catalog.AVAILABILITIES;
 export const sortForDisplay = catalog.sortForDisplay;
+export const displayBlockers = catalog.displayBlockers;
 export const saleBlockers = catalog.saleBlockers;
 export const describeSaleBlockers = catalog.describeSaleBlockers;
 

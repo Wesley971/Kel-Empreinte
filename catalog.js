@@ -153,24 +153,44 @@
     return product.availability === 'disponible' || product.availability === 'reservee' || product.availability === 'vendue';
   }
 
-  // Ce qui empêche une pièce d'être mise en vente : une photo et un prix, sa règle à elle
-  // (« une photo suffit à rendre une pièce disponible »). Partagé entre l'écran de gestion
-  // (action désactivée, raison affichée), l'API (refus 422) et build.js (échec du build).
-  // Renvoie une liste de codes.
-  function saleBlockers(product) {
+  function isText(value) {
+    return typeof value === 'string' && value.trim() !== '';
+  }
+
+  // Ce qui empêche une pièce d'être montrée sur le site, quel que soit son état visible (en
+  // vente, réservée, vendue) : une photo, un nom, un type, un public — ce que build.js exige
+  // d'une pièce qui n'est pas un brouillon. Renvoie une liste de codes.
+  function displayBlockers(product) {
     var blockers = [];
     if (!hasPhoto(product)) blockers.push('photo');
+    if (!isText(product.name)) blockers.push('nom');
+    if (!findById(CATEGORIES, product.category)) blockers.push('type');
+    if (!findById(AUDIENCES, product.audience)) blockers.push('public');
+    return blockers;
+  }
+
+  // Ce qui empêche une pièce d'être mise en vente : ce qui la montre, plus un prix — sa règle à
+  // elle (« une photo suffit à rendre une pièce disponible »). Partagé entre l'écran de gestion
+  // (action désactivée, raison affichée), l'API (refus 422) et build.js (échec du build) : l'API
+  // ne doit jamais écrire un fichier que le build refuserait.
+  function saleBlockers(product) {
+    var blockers = displayBlockers(product);
     if (!hasPrice(product)) blockers.push('prix');
     return blockers;
   }
 
-  // Phrase affichée telle quelle à Prescilia : une action, pas un code.
-  function describeSaleBlockers(blockers) {
+  var BLOCKER_LABELS = { photo: 'une photo', prix: 'un prix', nom: 'un nom', type: 'un type', public: 'un public' };
+
+  // Phrase affichée telle quelle à Prescilia : une action, pas un code. Les deux cas courants
+  // gardent leur formulation validée ; les autres listent ce qui manque.
+  function describeSaleBlockers(blockers, action) {
+    action = action || 'de mettre cette pièce en vente';
     if (!blockers.length) return '';
-    if (blockers.length === 2) return 'Ajoutez une photo et un prix avant de mettre cette pièce en vente.';
-    return blockers[0] === 'photo'
-      ? 'Ajoutez une photo avant de mettre cette pièce en vente.'
-      : 'Renseignez un prix avant de mettre cette pièce en vente.';
+    if (blockers.length === 1 && blockers[0] === 'photo') return 'Ajoutez une photo avant ' + action + '.';
+    if (blockers.length === 1 && blockers[0] === 'prix') return 'Renseignez un prix avant ' + action + '.';
+    if (blockers.length === 2 && blockers.indexOf('photo') !== -1 && blockers.indexOf('prix') !== -1) return 'Ajoutez une photo et un prix avant ' + action + '.';
+    var labels = blockers.map(function(code) { return BLOCKER_LABELS[code] || code; });
+    return 'Il manque ' + labels.join(', ') + ' ' + action.replace(/^de /, 'pour ') + '.';
   }
 
   // Ordre de l'écran de gestion et de l'API : les pièces dans l'ordre du fichier, les vendues
@@ -390,6 +410,7 @@
     hasPromo: hasPromo,
     isVisibleOnHome: isVisibleOnHome,
     isVisibleInShop: isVisibleInShop,
+    displayBlockers: displayBlockers,
     saleBlockers: saleBlockers,
     describeSaleBlockers: describeSaleBlockers,
     sortForDisplay: sortForDisplay,

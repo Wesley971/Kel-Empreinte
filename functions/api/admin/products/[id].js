@@ -9,9 +9,10 @@
    - 200 { product, unchanged }   : déjà dans cet état, rien à écrire
    - 400                          : corps illisible ou autre champ que availability
    - 404                          : pièce inconnue
-   - 422                          : état inconnu ou « reservee », ou pièce qui ne peut pas passer
-                                    « en vente » (sans photo ou sans prix) — les règles de
-                                    catalog.js, celles que le site et build.js appliquent
+   - 422                          : état inconnu ou « reservee », pièce qui ne peut pas passer
+                                    « en vente » (sans photo, nom, type, public ou prix) ni
+                                    « vendue » (idem, prix excepté) — les règles de catalog.js,
+                                    celles que le site et build.js appliquent
    - 409 / 502 / 503              : GitHub (voir catalogFailure)
 
    Lecture → modification → écriture avec le sha lu : si une autre écriture s'est glissée
@@ -23,7 +24,7 @@ import { json, error, methodNotAllowed } from '../../../_lib/http.js';
 import { GitHubError } from '../../../_lib/github.js';
 import {
   AVAILABILITIES, loadProducts, saveProducts, findProduct,
-  saleBlockers, describeSaleBlockers, catalogFailure,
+  displayBlockers, saleBlockers, describeSaleBlockers, catalogFailure,
 } from '../../../_lib/products.js';
 
 export async function onRequest(context) {
@@ -64,9 +65,15 @@ async function setAvailability(env, id, availability) {
     if (!product) return error(404, "Cette pièce n'existe pas, ou n'existe plus.");
     if (product.availability === availability) return json({ product, unchanged: true });
 
+    // Jamais un fichier que build.js refuserait : en vente = photo, nom, type, public et prix ;
+    // vendue = les mêmes sans le prix (la pièce reste affichée en boutique)
     if (availability === 'disponible') {
       const blockers = saleBlockers(product);
       if (blockers.length) return error(422, describeSaleBlockers(blockers));
+    }
+    if (availability === 'vendue') {
+      const blockers = displayBlockers(product);
+      if (blockers.length) return error(422, describeSaleBlockers(blockers, 'de marquer cette pièce vendue'));
     }
 
     const previous = product.availability;
