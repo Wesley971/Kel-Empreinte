@@ -1,4 +1,4 @@
-/* Écran « Mes bijoux » — /gestion/ (KD-92, cinq états avec KD-98).
+/* Écran « Mes bijoux » — /admin/ (KD-92, cinq états avec KD-98, à /admin/ depuis KD-95).
 
    La liste vient de GET /api/admin/products : la vérité du dépôt, pas le data/products.json
    servi avec le site, qui a jusqu'à deux minutes de retard (le temps d'un déploiement).

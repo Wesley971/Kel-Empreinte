@@ -1,6 +1,6 @@
 /* GET /api/admin/products — la liste des pièces, lue sur GitHub, dans l'ordre d'affichage.
 
-   L'écran « Mes bijoux » (/gestion/) part d'ici et non du data/products.json servi avec le
+   L'écran « Mes bijoux » (/admin/) part d'ici et non du data/products.json servi avec le
    site : ce dernier a jusqu'à deux minutes de retard sur le dépôt (durée d'un déploiement),
    et Prescilia verrait revenir un état qu'elle vient de changer. La réponse est la vérité du
    dépôt, sur la branche que ce déploiement sert.
