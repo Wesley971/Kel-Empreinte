@@ -13,7 +13,7 @@ encore là : les pages renvoient vers WhatsApp.
 | Fichier | Rôle |
 |---|---|
 | `index.html` | l'accueil ; les sections « Pièces mises en avant » et « Collections » y sont **générées** entre les marqueurs `<!-- build:… -->` |
-| `templates/boutique.html`, `templates/piece.html` | gabarits sources de la boutique et des pages pièce (mêmes marqueurs) ; `build.js` les remplit et écrit `boutique/` |
+| `templates/boutique.html`, `templates/piece.html` | gabarits sources de la boutique et des pages pièce (mêmes marqueurs) ; `build.js` les remplit et écrit `boutique/`. Déployés avec le site mais **jamais servis** : `functions/templates/[[path]].js` répond 404 (le `_redirects` de Pages ne sait pas produire un 404), et la sonde le vérifie |
 | `boutique/`, `sitemap.xml` | **générés au build, jamais committés** (`.gitignore`) : `boutique/index.html` + une page par pièce visible, plan du site. Vidés et réécrits à chaque `node build.js` |
 | `404.html` | servie par Pages avec un vrai code 404 pour tout chemin inconnu — dont l'adresse d'une pièce passée en brouillon ou retirée |
 | `tokens.css` | les variables CSS du site (palette, courbes, texture) — seule définition, chargée par toutes les pages **avant** leur feuille et par `/gestion/` |
@@ -284,7 +284,7 @@ retour d'information passe par les libellés du CMS.
 | Niveau | Détecte | Mécanisme | Alerte |
 |---|---|---|---|
 | Validité des données | JSON cassé, champ manquant, image introuvable | `build.js` au déploiement | e-mail Cloudflare « Deployment failed » |
-| Site vs dépôt | boutique injoignable, déploiement échoué ou jamais parti, catalogue amputé en ligne, `/admin` inaccessible, **espace de gestion (`/gestion/`, `/api/admin/`) servi sans redirection Access** | `check-site.js`, toutes les 6 h | e-mail GitHub (workflow en échec) |
+| Site vs dépôt | boutique injoignable, déploiement échoué ou jamais parti, catalogue amputé en ligne, `/admin` inaccessible, **espace de gestion (`/gestion/`, `/api/admin/`) servi sans redirection Access**, gabarit `/templates/…` servi au lieu d'un 404 | `check-site.js`, toutes les 6 h | e-mail GitHub (workflow en échec) |
 | Dépôt vs son état d'avant | catalogue qui perd anormalement des pièces alors que le build réussit | `check-catalog-drop.js`, à chaque push touchant `data/products.json` | e-mail GitHub (workflow en échec) |
 
 La sonde compare le site au dépôt ; le garde-fou compare le dépôt à lui-même. Aucun des deux ne

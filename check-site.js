@@ -44,6 +44,9 @@ var ADMIN_MARKER = 'id="nc-root"';
 // redirection vers la page de connexion de l'équipe, avant même que Pages ne serve quoi que ce soit.
 var PROTECTED_PATHS = ['gestion/', 'api/admin/'];
 var ACCESS_LOGIN_HOST = '.cloudflareaccess.com';
+// Les gabarits sources sont déployés avec le site mais ne doivent pas se servir : une Function
+// (functions/templates/[[path]].js) répond 404. Si elle disparaît, rien d'autre ne le remarquerait.
+var HIDDEN_PATH = 'templates/boutique.html';
 
 // Un déploiement Cloudflare prend 1 à 2 min, davantage si un build attend son tour (un seul
 // build à la fois sur le plan gratuit). Tant que le dernier commit est récent, un écart entre
@@ -171,6 +174,22 @@ async function expectAccessRedirect(url) {
   fail('espace de gestion injoignable — ' + url + ' : ' + why);
 }
 
+// Un chemin qui doit répondre 404 : un 200 veut dire que la Function qui le masque a disparu.
+async function expectNotFound(url) {
+  var why = '';
+  for (var attempt = 1; attempt <= 2; attempt++) {
+    if (attempt > 1) await wait(RETRY_NETWORK_MS);
+    try {
+      var status = (await fetchOnce(url, 'manual')).response.status;
+      if (status === 404) return;
+      fail('gabarit source servi — ' + url + ' : HTTP ' + status + ' au lieu de 404. Vérifier functions/templates/[[path]].js dans le déploiement.');
+    } catch (err) {
+      why = err.message;
+    }
+  }
+  fail('gabarit source : réponse illisible — ' + url + ' : ' + why);
+}
+
 // La boutique servie doit contenir les marqueurs de build.js : sans eux, la page est en ligne
 // mais ce n'est plus la page attendue (refonte non répercutée ici, ou HTML tronqué).
 function shopRegion(html, url) {
@@ -249,7 +268,8 @@ async function main() {
   for (var i = 0; i < PROTECTED_PATHS.length; i++) {
     await expectAccessRedirect(root + PROTECTED_PATHS[i]);
   }
-  var protectedNote = '/' + PROTECTED_PATHS.join(' et /') + ' protégés';
+  await expectNotFound(root + HIDDEN_PATH);
+  var protectedNote = '/' + PROTECTED_PATHS.join(' et /') + ' protégés, /templates/ masqué';
 
   // Le mot de la fin dit ce qui a vraiment été mesuré : un écart toléré reste un écart.
   if (site.matches) {
