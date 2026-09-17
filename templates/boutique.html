@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="light">
+<meta name="color-scheme" content="light dark">
 <title>La Boutique · Kel'Empreinte</title>
 <meta name="description" content="Toutes les créations Kel'Empreinte : boucles d'oreilles, colliers, nœuds papillon, bagues et bracelets en résine et fleurs séchées. Pièces uniques, faites main en France.">
 <meta property="og:type" content="website">
@@ -15,7 +15,8 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" type="image/png" href="/images/logo/logo-kel-empreinte.png">
+<link rel="icon" type="image/png" sizes="200x200" href="/images/logo/logo-kel-empreinte.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..500;1,9..144,300..500&family=Work+Sans:wght@300;400;500;600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/tokens.css">
@@ -91,7 +92,11 @@
 </main>
 
 <footer class="site-footer">
-  <img class="site-footer-logo" src="/images/logo/logo-kel-empreinte.png" alt="Kel'Empreinte" loading="lazy" width="56" height="56">
+  <!-- Logo : la version claire (« Empreinte » en crème) quand l'appareil est en mode sombre — KD-101 -->
+  <picture>
+    <source srcset="/images/logo/logo-kel-empreinte-dark-mode.png" media="(prefers-color-scheme: dark)">
+    <img class="site-footer-logo" src="/images/logo/logo-kel-empreinte.png" alt="Kel'Empreinte" loading="lazy" width="56" height="56">
+  </picture>
   <p class="site-footer-contact">
     <a href="mailto:kelempreinte.entreprise@gmail.com">kelempreinte.entreprise@gmail.com</a>
     <span aria-hidden="true">·</span>

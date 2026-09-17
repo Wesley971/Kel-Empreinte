@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="light">
+<meta name="color-scheme" content="light dark">
 <title>Page introuvable · Kel'Empreinte</title>
 <meta name="robots" content="noindex">
-<link rel="icon" type="image/png" href="/images/logo/logo-kel-empreinte.png">
+<link rel="icon" type="image/png" sizes="200x200" href="/images/logo/logo-kel-empreinte.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..500;1,9..144,300..500&family=Work+Sans:wght@300;400;500;600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/tokens.css">
@@ -18,7 +19,11 @@
      d'une pièce passée en brouillon ou retirée du site : un lien envoyé sur WhatsApp ne doit pas
      tomber sur une erreur brute. Sans ce fichier, Pages servirait l'accueil en 200. -->
 <main class="not-found">
-  <img class="not-found-logo" src="/images/logo/logo-kel-empreinte.png" alt="Kel'Empreinte" width="72" height="72">
+  <!-- Logo : la version claire (« Empreinte » en crème) quand l'appareil est en mode sombre — KD-101 -->
+  <picture>
+    <source srcset="/images/logo/logo-kel-empreinte-dark-mode.png" media="(prefers-color-scheme: dark)">
+    <img class="not-found-logo" src="/images/logo/logo-kel-empreinte.png" alt="Kel'Empreinte" width="72" height="72">
+  </picture>
   <p class="not-found-eyebrow">Page introuvable</p>
   <h1 class="not-found-title">Cette page n'existe pas,<br>ou cette pièce n'est plus proposée.</h1>
   <p class="not-found-text">Chaque création est unique&nbsp;: quand une pièce trouve preneur, sa page peut disparaître. La boutique montre tout ce qui est disponible aujourd'hui.</p>

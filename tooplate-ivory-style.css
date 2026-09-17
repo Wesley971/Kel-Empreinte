@@ -251,6 +251,10 @@ img { display: block; max-width: 100%; height: auto; }
 /* ═══════════════════════════════════════════════
    KEL'EMPREINTE LOGO (image mark — sizing only)
    ═══════════════════════════════════════════════ */
+/* Chaque logo est un <picture> (version claire du logo en mode sombre, KD-101) : transparent
+   pour la mise en page, c'est l'<img> qui porte la classe de taille et la place dans le flex */
+picture { display: contents; }
+
 .kel-logo {
   display: block;
 }
@@ -260,7 +264,7 @@ img { display: block; max-width: 100%; height: auto; }
 
 /* ═══════════════════════════════════════════════
    SECTION 4: THE PROCESS (Vertical Timeline)
-   Sombre par design : couleurs constantes --night / --cream / --cream-muted
+   Sombre par design, dans les deux modes : couleurs constantes --night / --cream / --cream-muted
    ═══════════════════════════════════════════════ */
 .process {
   background: var(--night);

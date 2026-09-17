@@ -5,8 +5,15 @@
    pour que l'écran de Prescilia reprenne exactement la palette du site sans en copier les valeurs :
    une couleur ajustée ici est ajustée partout. Les valeurs viennent du template Tooplate 2166
    Ivory Flow, adaptées à la marque (voir les commentaires en place). Les règles qui les utilisent
-   restent dans la feuille de chaque page. */
+   restent dans la feuille de chaque page.
+
+   Deux jeux de valeurs : la palette claire ci-dessous, et sa version sombre en bas de fichier
+   (KD-101), appliquée quand la visiteuse a réglé son appareil en sombre. */
 :root {
+  /* Le site fournit ses deux modes : les contrôles natifs suivent, et Chrome Android cesse
+     d'assombrir la page de force (il ne le fait que pour les sites qui ne déclarent pas de sombre) */
+  color-scheme: light dark;
+
   --oat: #FCFAF8;
   --oat-mid: #F5F0EB;
   --oat-deep: #EDE6DD;
@@ -28,18 +35,45 @@
   --gold-light: #C9A431;
   --gold-ghost: rgba(173, 138, 60, 0.06);
   /* Surfaces translucides et filets : le même crème et la même encre que ci-dessus, avec une
-     transparence. Définis ici, et non en dur dans les feuilles, pour suivre la palette. */
+     transparence. Définis ici, et non en dur dans les feuilles, pour basculer avec la palette. */
   --glass: rgba(252, 250, 248, 0.65);        /* nav en pilule */
   --glass-strong: rgba(252, 250, 248, 0.92); /* bouton hamburger */
   --glass-opaque: rgba(252, 250, 248, 0.97); /* menu mobile */
   --hairline: rgba(26, 23, 20, 0.06);        /* filets de la nav et du hamburger */
   --ghost-text: rgba(26, 23, 20, 0.035);     /* « Kel'Empreinte » en filigrane de la signature */
   /* Constantes : les surfaces sombres par design (section « Comment naît chaque pièce »,
-     fragment vidéo, lightbox) et leur texte. Distinctes de --ink / --oat, qui décrivent la page. */
+     fragment vidéo, lightbox) gardent ces valeurs dans les deux modes. Ne servent qu'à ces
+     surfaces et à leur texte — pour le reste, --ink et --oat basculent. */
   --night: #1A1714;
   --cream: #FCFAF8;
   --cream-muted: #B8B0A6;
   --ease-soft: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-expo: cubic-bezier(0.22, 1, 0.36, 1);
   --noise-texture: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+}
+
+/* Mode sombre (KD-101). Palette calibrée sur l'assombrissement automatique de Chrome Android
+   (inversion de luminosité en CIELAB, L' = 110 − L, gris purs ramenés à #121212) : c'était le
+   rendu approuvé avant que le site ne déclare son propre mode sombre, et déclarer le sien est
+   la seule façon d'offrir le même rendu sur iPhone et Firefox, qui n'assombrissent jamais une
+   page. Écarts volontaires, décidés sur captures : --ink-faint atténué (Chrome le garde tel
+   quel, ce qui le rend plus clair que --ink-muted) ; --terra et --amber inchangés (Chrome
+   assombrit le texte terracotta à 3,8:1). --white, --terra-*, les ors et les constantes ne
+   bougent pas. Contrastes indiqués sur --oat sombre. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --oat: #201E1D;
+    --oat-mid: #282521;
+    --oat-deep: #312C25;
+    --amber-deep: #CC904A;   /* 6,1:1 — les prix */
+    --ink: #FCFAF8;
+    --ink-soft: #DDD6CF;
+    --ink-muted: #ABA296;    /* 6,6:1 */
+    --ink-faint: #918880;    /* 4,8:1, reste sous --ink-muted */
+    --glass: rgba(32, 30, 29, 0.65);
+    --glass-strong: rgba(32, 30, 29, 0.92);
+    --glass-opaque: rgba(32, 30, 29, 0.97);
+    --hairline: rgba(252, 250, 248, 0.08);
+    --ghost-text: rgba(252, 250, 248, 0.045);
+  }
 }

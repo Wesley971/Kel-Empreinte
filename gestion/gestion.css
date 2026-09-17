@@ -4,12 +4,26 @@
    Mobile d'abord : Prescilia gère ses pièces depuis son téléphone. Une colonne, des cibles
    tactiles d'au moins 44 px, du texte lisible sans zoom. Les couleurs viennent de tokens.css
    (la palette du site) ; seules les couleurs sémantiques que le site n'a pas — l'erreur, la
-   surface des lignes — sont définies ici. */
+   surface des lignes — sont définies ici, avec leur version sombre (KD-101 : la palette de
+   tokens.css bascule d'elle-même, ces deux-là doivent suivre). */
 
 :root {
   --kel-error: #A63D2A;        /* rouge terre : 5,9:1 sur blanc, cohérent avec --terra */
   --kel-surface: var(--white); /* lignes de la liste et bloc d'erreur : un ton plus clair que le fond */
 }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --kel-error: #F9866B;    /* 6,8:1 sur --oat sombre */
+    --kel-surface: #282521;  /* = --oat-mid sombre : reste un ton plus clair que le fond, comme en clair */
+  }
+  /* Le bouton principal passe encre → crème avec la palette ; son texte doit suivre (--white ne bascule pas) */
+  .kel-button { color: var(--oat); }
+}
+
+/* Chaque logo est un <picture> (version claire du logo en mode sombre, KD-101) : transparent
+   pour la mise en page, c'est l'<img> qui garde sa place dans le flex et sa taille */
+picture { display: contents; }
 
 *, *::before, *::after { box-sizing: border-box; }
 

@@ -3,11 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="color-scheme" content="light" />
+  <meta name="color-scheme" content="light dark" />
   <!-- Espace privé : jamais dans les résultats de recherche, même si un lien fuit. -->
   <meta name="robots" content="noindex, nofollow" />
   <title>Mes bijoux — Kel'Empreinte</title>
-  <link rel="icon" type="image/png" href="/images/logo/logo-kel-empreinte.png" />
+  <link rel="icon" type="image/png" sizes="200x200" href="/images/logo/logo-kel-empreinte.png" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..500&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <!-- tokens.css : la palette du site, partagée — l'écran ne copie aucune couleur -->
@@ -21,7 +22,11 @@
   <!-- En-tête et statut restent visibles en haut de l'écran pendant qu'on fait défiler la liste -->
   <div class="kel-top">
     <header class="kel-header">
-      <img class="kel-header-logo" src="/images/logo/logo-kel-empreinte.png" alt="" width="36" height="36" />
+      <!-- Logo : la version claire (« Empreinte » en crème) quand l'appareil est en mode sombre — KD-101 -->
+      <picture>
+        <source srcset="/images/logo/logo-kel-empreinte-dark-mode.png" media="(prefers-color-scheme: dark)" />
+        <img class="kel-header-logo" src="/images/logo/logo-kel-empreinte.png" alt="" width="36" height="36" />
+      </picture>
       <h1 class="kel-header-title">Mes bijoux</h1>
       <nav class="kel-header-nav" aria-label="Liens utiles">
         <a href="/" target="_blank" rel="noopener">Voir le site ↗</a>
