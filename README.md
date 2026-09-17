@@ -215,6 +215,15 @@ mention « Remise en vente le … ») ; les groupes vides n'apparaissent pas. Ch
 référence, type, prix (barré + promo), une **pastille d'état** qui ouvre la feuille d'actions, et
 **« Marquer vendue »** à un tap là où ça a un sens (en vente, réservée).
 
+- **Recherche** (KD-102) : un champ en tête de liste (il défile avec elle ; la zone collante reste à
+  l'en-tête et au statut) filtre à chaque frappe sur le **nom** et la **référence**. La saisie est
+  découpée en mots : une pièce correspond si **chacun** est contenu dans son nom ou sa référence, dans
+  n'importe quel ordre, sans casse ni accents (« velours herbier » trouve « Herbier Jaune Velours » ;
+  « bo023 » et « BO-023 » se comparent via `catalog.normalizeReference`). Les groupes gardent leur ordre,
+  leurs compteurs suivent, le résumé dit « N sur T » ; aucune correspondance → « Aucune pièce ne
+  correspond à « … ». » avec un bouton d'effacement. Rien n'est écrit ni mémorisé : champ vide à chaque
+  ouverture. Tout se passe dans la page — la liste est déjà chargée, un rendu complet par frappe coûte
+  ~1 ms (une dizaine pour rendre 100 lignes).
 - La **feuille d'actions** ne propose que ce que `catalog.allowedTransitions` autorise — la même table
   que l'API (422 pour le reste) : en vente → *Réserver 14 jours* (date calculée affichée, confirmation)
   · *Marquer vendue* · *Retirer du site* (confirmation) ; réservée → *Marquer vendue* · *Remettre en
