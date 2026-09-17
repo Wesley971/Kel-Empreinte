@@ -6,8 +6,7 @@
     "category": "boucles-oreilles",
     "audience": "mixte",
     "collections": [],
-    "availability": "reservee",
-    "reservedUntil": "2026-10-01",
+    "availability": "disponible",
     "price": 16,
     "promoPrice": null,
     "customization": {
