@@ -16,7 +16,7 @@ encore là : les pages renvoient vers WhatsApp.
 | `templates/boutique.html`, `templates/piece.html` | gabarits sources de la boutique et des pages pièce (mêmes marqueurs) ; `build.js` les remplit et écrit `boutique/`. Déployés avec le site mais **jamais servis** : `functions/templates/[[path]].js` répond 404 (le `_redirects` de Pages ne sait pas produire un 404), et la sonde le vérifie |
 | `boutique/`, `sitemap.xml` | **générés au build, jamais committés** (`.gitignore`) : `boutique/index.html` + une page par pièce visible, plan du site. Vidés et réécrits à chaque `node build.js` |
 | `404.html` | servie par Pages avec un vrai code 404 pour tout chemin inconnu — dont l'adresse d'une pièce passée en brouillon ou retirée |
-| `tokens.css` | les variables CSS du site (palette, courbes, texture) — seule définition, chargée par toutes les pages **avant** leur feuille et par `/gestion/` |
+| `tokens.css` | les variables CSS du site (palette, courbes, texture) — seule définition, chargée par toutes les pages **avant** leur feuille et par `/gestion/`. Contient aussi la **palette sombre** (voir *Mode sombre*) |
 | `tooplate-ivory-style.css`, `tooplate-ivory-script.js` | styles de base et comportement de l'accueil (template Tooplate 2166 adapté) |
 | `shop.css` | composants du site marchand : carte d'une pièce, puces de filtre, grille, page pièce, bandes de collections, pied de page, 404 |
 | `site.js` | navigation, menu mobile, verrou de scroll, lightbox — partagé par toutes les pages |
@@ -29,7 +29,8 @@ encore là : les pages renvoient vers WhatsApp.
 | `data/products.json` | **source de vérité du catalogue**, modifiée par l'espace de gestion (`/gestion`) via les Functions, un commit par modification (voir *Modèle*) |
 | `data/collections.json` | les collections nommées (`id`, `name`, `order`, `tagline`, `cover`) : une bande par collection sur l'accueil, dans cet ordre. « Nouveautés » n'y est pas : elle est automatique (les 8 dernières pièces en vente) |
 | `admin/` | Sveltia CMS. `config.yml` = schéma des fiches + titre/logo de l'interface (`app_title`, `logo`) ; `index.html` = en-tête Kel'Empreinte au-dessus du CMS monté dans `#nc-root` (les couleurs de Sveltia elles-mêmes ne sont pas personnalisables) ; `guide.html` = guide « Gérer mes bijoux » pour Prescilia (`noindex`) ; `logo.png` = logo de connexion/favicon ; `manifest.webmanifest` + `icon-*.png` = nom « Mes bijoux » et icône du raccourci « écran d'accueil », à garder devant le script Sveltia qui injecte son propre manifest |
-| `images/` | photos (les uploads du CMS arrivent ici) |
+| `images/` | photos (les uploads du CMS arrivent ici). `images/logo/` : le logo en 200 px, en deux versions — `logo-kel-empreinte.png` (« Empreinte » en encre, appareil clair) et `logo-kel-empreinte-dark-mode.png` (« Empreinte » en crème, appareil sombre) — et l'image de partage `og-image-kel-empreinte.png`. Les sources haute résolution ne sont pas dans le dépôt |
+| `favicon.svg` | favicon qui embarque les deux logos et affiche celui du réglage de l'appareil (Chrome, Firefox) ; Safari ignore les favicons SVG et garde le PNG déclaré avant lui |
 | `functions/` | Cloudflare Pages Functions : les routes `/api/*` (voir *Fonctions serverless*). `_lib/` = modules partagés (réponses JSON, accès GitHub, catalogue — lecture / réécriture fidèle de `products.json`, vérification du jeton Cloudflare Access, `build-info.js` = branche du déploiement, réécrit par `build.js` sur Pages) ; `api/` = les routes, une par fichier |
 | `gestion/` | l'espace de gestion, derrière Cloudflare Access (voir *Espace de gestion*). Chemin provisoire tant que `admin/` est occupé par Sveltia. `index.html` + `gestion.css` + `gestion.js` = l'écran « Mes bijoux » : la liste des pièces et l'interrupteur « En vente » |
 | `.node-version` | version de Node utilisée par le build Cloudflare |
@@ -63,6 +64,37 @@ enregistrements rapprochés se mettent en file — l'écran de gestion l'annonce
 **Rollback** : vider la build command dans le dashboard fait retomber le site sur le HTML committé
 (périmé mais fonctionnel) ; ou redéployer une version précédente depuis la liste des déploiements
 (chaque déploiement garde une URL permanente `<hash>.kel-empreinte.pages.dev`).
+
+## Mode sombre
+
+Le site suit le réglage clair / sombre de l'appareil (`prefers-color-scheme`), avec sa propre palette :
+toutes les pages déclarent `color-scheme: light dark` et `tokens.css` redéfinit les variables sous
+`@media (prefers-color-scheme: dark)`. Le logo change avec : chaque `<img>` du logo est dans un
+`<picture>` dont la `<source media="(prefers-color-scheme: dark)">` pointe sur la version à
+« Empreinte » crème (KD-101).
+
+Pourquoi une palette à nous plutôt que l'assombrissement automatique de Chrome Android : ce réglage
+veut dire « la visiteuse préfère le sombre », pas « la page est rendue sombre ». Safari (iPhone) et
+Firefox n'assombrissent jamais une page ; sans palette sombre déclarée, elles auraient reçu le logo crème
+sur fond crème. Déclarer `light dark` fait aussi que Chrome cesse d'assombrir la page de force et rend
+la nôtre (vérifié : une page `light` seule est assombrie, une page `light dark` ne l'est plus).
+
+La palette sombre est **calibrée sur ce que Chrome produisait** (inversion de luminosité en CIELAB,
+`L' = 110 − L`), rendu qui avait été approuvé, avec quelques écarts de conception notés dans
+`tokens.css` (puce active claire, texte atténué plus discret, terracotta inchangé). Règles :
+
+- toute couleur qui doit basculer passe par un token, y compris les surfaces translucides (`--glass*`,
+  `--hairline`, `--ghost-text`) ; les seuls littéraux restants sont des ombres et les nuances de la
+  lightbox et du bouton vidéo, constantes par design ;
+- les surfaces **sombres par design** dans les deux modes (section « Comment naît chaque pièce »,
+  fragment vidéo, lightbox) utilisent les constantes `--night` / `--cream` / `--cream-muted`, qui ne
+  basculent pas — pas `--ink` / `--oat`, qui basculent ;
+- `/gestion/` définit ses deux couleurs propres (`--kel-error`, `--kel-surface`) dans les deux modes,
+  dans `gestion.css`.
+
+Pour vérifier un rendu sans changer le réglage de son appareil : DevTools › Rendering › *Emulate CSS
+media feature prefers-color-scheme*. L'icône d'écran d'accueil (manifest) ne peut pas suivre le
+réglage : elle relève de KD-95.
 
 ## Build local
 
