@@ -83,6 +83,10 @@ function checkImageFile(src, where) {
 
 /* ── Validation du modèle v2 ── */
 
+// L'instant du build, heure de Paris pour toutes les règles de dates (catalog.js) : une réservation
+// échue est rendue disponible, une vente ne peut pas être datée de demain.
+var BUILD_TIME = new Date();
+
 // Les identifiants deviennent des segments d'URL (/boutique/<id>/) et des noms de dossiers
 // générés : uniquement minuscules, chiffres et tirets simples — jamais de remontée possible.
 var ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -210,6 +214,7 @@ function validateProduct(product, index, seen, collectionIds) {
     if (!isBlank(product.sale.amount) && !isAmount(product.sale.amount)) fail(where + ' : « sale.amount » doit être un nombre positif');
     if (!isBlank(product.sale.channel)) checkOneOf(product.sale.channel, CHANNEL_IDS, 'sale.channel', where);
     if (!isBlank(product.sale.date) && !isIsoDate(product.sale.date)) fail(where + ' : « sale.date » doit être une date AAAA-MM-JJ');
+    if (catalog.isFutureDay(product.sale.date, BUILD_TIME)) fail(where + ' : « sale.date » est dans le futur (' + product.sale.date + ', nous sommes le ' + catalog.todayInParis(BUILD_TIME) + ' à Paris)');
   }
 
   if (!isBlank(product.customization)) {
@@ -442,13 +447,15 @@ function joinFr(items) {
 function renderPieceArticle(product, collections) {
   var name = esc(product.name);
   var images = product.images;
-  var lines = ['<article class="piece-article" data-availability="' + esc(product.availability) + '">'];
+  // Une réservée porte son échéance et ses deux visages (voir catalog.js, renderShopCard) : le
+  // navigateur montre l'un ou l'autre selon le jour à Paris, sans attendre un déploiement.
+  var lines = ['<article class="piece-article" data-availability="' + esc(product.availability) + '"' + catalog.reservedAttrs(product) + '>'];
 
   // Galerie : la première photo en grand, les autres en vignettes
   lines.push('  <div class="piece-gallery">');
   lines.push('    <button type="button" class="piece-main" aria-label="Agrandir la photo">');
   lines.push('      <img src="' + esc(catalog.imageUrl(images[0])) + '" alt="' + esc(images[0].alt) + '">');
-  if (catalog.isReserved(product)) lines.push('      <span class="shop-card-badge shop-card-badge--reserved">Réservée</span>');
+  if (catalog.isReserved(product)) lines.push('      <span class="shop-card-badge shop-card-badge--reserved" data-while-reserved>Réservée</span>');
   if (catalog.isSold(product)) lines.push('      <span class="shop-card-badge shop-card-badge--sold">Vendue</span>');
   lines.push('    </button>');
   if (images.length > 1) {
@@ -482,15 +489,13 @@ function renderPieceArticle(product, collections) {
     if (catalog.hasPromo(product)) price += '<s class="piece-price-old">' + esc(catalog.formatOriginalPrice(product)) + '</s>';
     price += esc(catalog.formatPrice(product)) + '</p>';
     lines.push(price);
-    if (catalog.isReserved(product)) {
-      lines.push('    <p class="piece-state piece-state--reserved">' + esc(catalog.formatReservedUntil(product)) + '</p>');
-    } else {
-      // « Ajouter au panier » arrive avec KD-64 ; d'ici là la commande passe par WhatsApp
-      lines.push('    <div class="piece-actions">');
-      lines.push('      <a class="piece-cta" href="' + esc(catalog.buildWhatsAppLink(product)) + '" target="_blank" rel="noopener noreferrer">Commander sur WhatsApp</a>');
-      lines.push('      <a class="cta-link cta-link--dark" href="/boutique/">Voir d\'autres pièces</a>');
-      lines.push('    </div>');
-    }
+    if (catalog.isReserved(product)) lines.push('    <p class="piece-state piece-state--reserved" data-while-reserved>' + esc(catalog.formatReservedUntil(product)) + '</p>');
+    // « Ajouter au panier » arrive avec KD-64 ; d'ici là la commande passe par WhatsApp. Sur une
+    // réservée le bloc attend, caché, l'échéance.
+    lines.push('    <div class="piece-actions"' + (catalog.isReserved(product) ? ' data-after-reservation hidden' : '') + '>');
+    lines.push('      <a class="piece-cta" href="' + esc(catalog.buildWhatsAppLink(product)) + '" target="_blank" rel="noopener noreferrer">Commander sur WhatsApp</a>');
+    lines.push('      <a class="cta-link cta-link--dark" href="/boutique/">Voir d\'autres pièces</a>');
+    lines.push('    </div>');
   }
 
   // Sa description, telle qu'elle l'écrit : retours à la ligne et emojis conservés (pre-line)
@@ -624,7 +629,11 @@ function resetShopDir() {
 /* ── Programme ── */
 
 var data = readCatalog();
-var products = data.products;
+// Validé tel qu'écrit, rendu tel que réglé : une réservation échue à l'instant du build est une
+// pièce disponible pour toutes les pages (le fichier n'est pas touché ; l'écran de gestion, lui,
+// applique la même règle à la lecture)
+var products = data.products.map(function(product) { return catalog.settleReservation(product, BUILD_TIME); });
+var settledCount = products.filter(function(product, i) { return product !== data.products[i]; }).length;
 var collections = data.collections;
 var shown = catalog.sortForShop(products);
 
@@ -659,7 +668,8 @@ writeFile(SITEMAP_FILE, sitemap);
 var counts = {};
 products.forEach(function(product) { counts[product.availability] = (counts[product.availability] || 0) + 1; });
 console.log('build.js : catalogue — ' + products.length + ' pièces (' +
-  catalog.AVAILABILITIES.filter(function(s) { return counts[s]; }).map(function(s) { return counts[s] + ' ' + s; }).join(', ') + ')');
+  catalog.AVAILABILITIES.filter(function(s) { return counts[s]; }).map(function(s) { return counts[s] + ' ' + s; }).join(', ') + ')' +
+  (settledCount ? ', dont ' + settledCount + ' réservation(s) échue(s) rendue(s) disponible(s) — ' + catalog.todayInParis(BUILD_TIME) + ' à Paris' : ''));
 console.log('build.js : pages — accueil (' + catalog.featuredPieces(products, HOME_FEATURED_FALLBACK).length + ' pièces en avant), boutique/index.html + ' +
   piecePages.length + ' pages pièce, sitemap.xml (' + (shown.length + 2) + ' URL)' + (indexOutput === indexHtml ? ', index.html déjà à jour' : ', index.html mis à jour'));
 

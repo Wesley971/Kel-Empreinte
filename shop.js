@@ -9,7 +9,13 @@
    rechargement. Sans script, toutes les cartes sont visibles — rien n'est perdu.
 
    Page pièce : vignettes qui changent la grande photo, grande photo qui s'ouvre en plein écran
-   (lightbox de site.js). */
+   (lightbox de site.js).
+
+   Réservations (KD-98) : les pages sont générées au déploiement, mais une réservation expire à
+   minuit, heure de Paris, sans attendre le déploiement suivant. build.js rend donc une pièce
+   réservée avec ses deux visages (voir catalog.js) et ce script montre le bon au chargement, avec
+   la règle partagée. Sans script ou sans catalog.js, la page reste telle que construite —
+   réservée, le sens sûr. */
 
 (function() {
   'use strict';
@@ -17,11 +23,36 @@
   // Noms lisibles des filtres dans l'URL
   var PARAMS = { audience: 'public', category: 'type' };
 
+  settleReservations();
+
   var grid = document.getElementById('shopGrid');
   if (grid) initShop(grid);
 
   var gallery = document.querySelector('.piece-gallery');
   if (gallery) initGallery(gallery);
+
+  /* ── Réservations échues ── */
+
+  // Cartes et article portent data-reserved-until ; passé ce jour (heure de Paris, jugée par
+  // catalog.js), ce qui parlait de réservation se cache et ce qui attendait se montre. Le
+  // data-availability suit, pour le CSS et les filtres.
+  function settleReservations() {
+    var catalog = window.KelCatalog;
+    if (!catalog) return;
+    toArray(document.querySelectorAll('[data-reserved-until]')).forEach(function(root) {
+      var product = { availability: 'reservee', reservedUntil: root.getAttribute('data-reserved-until') };
+      var settled;
+      try {
+        settled = catalog.isReservationExpired(product);
+      } catch (err) {
+        return; // Intl sans fuseau : on ne tranche pas, la page reste réservée
+      }
+      if (!settled) return;
+      toArray(root.querySelectorAll('[data-while-reserved]')).forEach(function(el) { el.hidden = true; });
+      toArray(root.querySelectorAll('[data-after-reservation]')).forEach(function(el) { el.hidden = false; });
+      root.setAttribute('data-availability', 'disponible');
+    });
+  }
 
   /* ── Boutique : filtres ── */
 

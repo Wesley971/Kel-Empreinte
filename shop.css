@@ -161,7 +161,14 @@
   color: var(--oat);
 }
 
-/* Réservée : la date prend la place du bouton */
+/* Réservée : la date prend la place du bouton, jusqu'à l'échéance — shop.js cache alors la date et
+   le badge et montre le bouton (attribut hidden : ces éléments ont un display à eux) */
+.shop-card-badge[hidden],
+.shop-card-until[hidden],
+.shop-card-action[hidden],
+.piece-state[hidden],
+.piece-actions[hidden] { display: none; }
+
 .shop-card-until {
   margin: 4px 0 0;
   font-family: 'EB Garamond', serif;

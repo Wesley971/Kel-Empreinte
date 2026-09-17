@@ -11,6 +11,11 @@
    la référence que Prescilia lui donne (« BO-023 ») et appartenir à des collections. Cinq états,
    voir AVAILABILITIES. Le rendu des cartes (boutique, accueil) est généré au déploiement.
 
+   La réservation (KD-98) suit une règle de dates écrite une seule fois ici — 14 jours fixes,
+   heure de Paris, retour automatique en vente à l'échéance — que build.js applique au
+   déploiement, le navigateur entre deux déploiements et la Function de checkout (KD-64) au
+   paiement : le même verdict à la même seconde, quel que soit le fuseau de la machine.
+
    Les espaces insécables s'y écrivent \u00a0 et jamais &nbsp; : les valeurs produites ici
    alimentent aussi des textContent (écran de gestion), où une entité HTML s'afficherait telle
    quelle. */
@@ -26,10 +31,12 @@
 
   /* ── Vocabulaire ── */
 
-  // « disponible » : en vente ; « reservee » : quelqu'un a jusqu'à `reservedUntil` pour payer ;
-  // « vendue » : partie, visible en boutique sans prix ni achat ; « brouillon » : en cours de
-  // saisie, invisible ; « retiree » : sortie du site sans être supprimée — sa référence reste
-  // prise, elle ne sera jamais réutilisée (KD-74). build.js refuse toute autre valeur.
+  // « disponible » : en vente ; « reservee » : quelqu'un a jusqu'à `reservedUntil` inclus pour
+  // payer, puis la pièce redevient disponible d'elle-même (voir Réservation) ; « vendue » :
+  // partie, visible en boutique sans prix ni achat ; « brouillon » : en cours de saisie, jamais
+  // publiée, invisible ; « retiree » : publiée puis sortie du site sans être vendue ni supprimée —
+  // sa référence reste prise, elle ne sera jamais réutilisée (KD-74). build.js refuse toute
+  // autre valeur.
   var AVAILABILITIES = ['disponible', 'reservee', 'vendue', 'brouillon', 'retiree'];
 
   var STATE_LABELS = {
@@ -230,6 +237,128 @@
     return (short ? 'Jusqu\'au ' : 'Réservée jusqu\'au ') + formatDay(date, short);
   }
 
+  /* ── Réservation : 14 jours fixes, heure de Paris ── */
+
+  // La règle de Prescilia : une pièce réservée le 1er reste réservée jusqu'au 14 inclus et
+  // redevient disponible le 15 à 00 h 00, heure de Paris — jamais UTC, jamais l'heure de la
+  // machine. Rien ne se saisit : `reservedUntil` est le dernier jour réservé, calculé (jour de la
+  // réservation + 13), et aucune date de réservation ne se modifie à la main.
+  var TIME_ZONE = 'Europe/Paris';
+  var RESERVATION_DAYS = 14;
+
+  // Le jour civil « AAAA-MM-JJ » à Paris pour un instant donné (par défaut : maintenant). Le
+  // fuseau est écrit ici, jamais pris sur l'appareil : le téléphone d'une visiteuse à l'étranger et
+  // le Worker de Cloudflare (en UTC) doivent trouver le même jour.
+  function todayInParis(now) {
+    var parts = new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' })
+      .formatToParts(now || new Date());
+    var value = {};
+    parts.forEach(function(part) { value[part.type] = part.value; });
+    return value.year + '-' + value.month + '-' + value.day;
+  }
+
+  // Jour + n, en calendrier : Date.UTC ne connaît pas les changements d'heure, le résultat ne peut
+  // pas glisser d'un jour. Entrée illisible : chaîne vide.
+  function addDays(isoDay, days) {
+    var match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(isoDay || ''));
+    if (!match) return '';
+    return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + days)).toISOString().slice(0, 10);
+  }
+
+  // Le dernier jour réservé pour une réservation prise un jour donné
+  function reservationEnd(reservedOn) {
+    return addDays(reservedOn, RESERVATION_DAYS - 1);
+  }
+
+  // Une réservation tient tant que le jour à Paris n'a pas dépassé `reservedUntil` : les jours
+  // « AAAA-MM-JJ » se comparent comme des chaînes. Sans date lisible, elle ne tient pas.
+  function isReservationActive(product, now) {
+    if (product.availability !== 'reservee' || !parseIsoDate(product.reservedUntil)) return false;
+    return todayInParis(now) <= product.reservedUntil;
+  }
+
+  // Une réservée dont l'échéance est passée est revenue en vente d'elle-même
+  function isReservationExpired(product, now) {
+    return product.availability === 'reservee' && !isReservationActive(product, now);
+  }
+
+  // L'état à traiter, pour le site comme pour l'écran de gestion : « disponible » pour une
+  // réservation échue, l'état du fichier sinon. La Function de checkout (KD-64) juge sur celui-ci.
+  function effectiveAvailability(product, now) {
+    return isReservationExpired(product, now) ? 'disponible' : product.availability;
+  }
+
+  // Une copie de la pièce réglée à l'instant donné : build.js rend le catalogue ainsi, une
+  // réservation échue devient une pièce disponible sans date. Le fichier, lui, garde « reservee »
+  // et sa date jusqu'à la prochaine action de Prescilia.
+  function settleReservation(product, now) {
+    if (!isReservationExpired(product, now)) return product;
+    var settled = {};
+    Object.keys(product).forEach(function(key) { if (key !== 'reservedUntil') settled[key] = product[key]; });
+    settled.availability = 'disponible';
+    return settled;
+  }
+
+  // Le jour où une réservation échue a remis la pièce en vente : le lendemain de l'échéance
+  function returnedToSaleOn(product) {
+    return addDays(product.reservedUntil, 1);
+  }
+
+  function formatReturnedToSale(product) {
+    var date = parseIsoDate(returnedToSaleOn(product));
+    return date ? 'Remise en vente le ' + formatDay(date, true) : '';
+  }
+
+  // Un jour « AAAA-MM-JJ » postérieur au jour courant à Paris : une vente ne se date pas au futur
+  function isFutureDay(isoDay, now) {
+    return parseIsoDate(isoDay) !== null && isoDay > todayInParis(now);
+  }
+
+  /* ── Vente ── */
+
+  function channelLabel(id) {
+    var channel = findById(CHANNELS, id);
+    return channel ? channel.label : (id || '');
+  }
+
+  // La vente est complète quand le montant encaissé est connu : c'est le rappel demandé (KD-74)
+  function isSaleComplete(product) {
+    return !!(product.sale && typeof product.sale.amount === 'number' && product.sale.amount >= 0);
+  }
+
+  // « Vendue le 3 oct. · 45 € · Etsy » : ce qui manque est omis, sauf le montant, qui est réclamé
+  function formatSale(product, short) {
+    var sale = product.sale || {};
+    var date = parseIsoDate(sale.date);
+    var parts = ['Vendue' + (date ? ' le ' + formatDay(date, short) : '')];
+    parts.push(isSaleComplete(product) ? formatAmount(sale.amount) : 'montant à compléter');
+    if (sale.channel) parts.push(channelLabel(sale.channel));
+    return parts.join('\u00a0· ');
+  }
+
+  /* ── Transitions ── */
+
+  // Ce que Prescilia peut faire d'une pièce selon son état effectif : la table unique de l'écran
+  // de gestion (les actions proposées) et de l'API (422 pour tout le reste). Une pièce publiée ne
+  // redevient jamais un brouillon ; une réservée active ne se réserve pas à nouveau (ce serait
+  // une prolongation déguisée) ; « disponible » depuis disponible range une réservation échue
+  // (le fichier perd sa date) ; « vendue » depuis vendue complète la vente sans changer d'état.
+  var TRANSITIONS = {
+    disponible: ['disponible', 'reservee', 'vendue', 'retiree'],
+    reservee: ['disponible', 'vendue'],
+    vendue: ['disponible', 'vendue'],
+    brouillon: ['disponible'],
+    retiree: ['disponible']
+  };
+
+  function allowedTransitions(product, now) {
+    return (TRANSITIONS[effectiveAvailability(product, now)] || []).slice();
+  }
+
+  function canTransition(product, target, now) {
+    return allowedTransitions(product, now).indexOf(target) !== -1;
+  }
+
   /* ── Prix et textes ── */
 
   // « 50 € », « 12,50 € » : entier tel quel, sinon deux décimales à la française.
@@ -339,10 +468,19 @@
     return '/boutique/' + encodeURIComponent(product.id) + '/';
   }
 
+  // Une pièce réservée est rendue avec ses deux visages : ce qui se montre tant que la réservation
+  // tient (data-while-reserved) et ce qui la remplace à l'échéance (data-after-reservation, caché).
+  // Le navigateur bascule l'un vers l'autre à la seconde près (shop.js) sans construire de HTML ;
+  // `data-reserved-until` porte l'échéance qu'il compare au jour à Paris.
+  function reservedAttrs(product) {
+    return isReserved(product) ? ' data-reserved-until="' + escapeHtml(product.reservedUntil) + '"' : '';
+  }
+
   // La carte d'une pièce : boutique et « Pièces mises en avant » de l'accueil. La classe reste
   // exactement « shop-card » sur toutes les cartes : check-site.js compte `class="shop-card"`
   // pour comparer le site au dépôt. L'état et les critères de filtre sont portés par des
-  // attributs data-*, qui servent d'accroche à shop.js (filtres) et au CSS (photo d'une vendue).
+  // attributs data-*, qui servent d'accroche à shop.js (filtres, échéance) et au CSS (photo d'une
+  // vendue).
   function renderShopCard(product, indent) {
     indent = indent || '';
     var name = escapeHtml(product.name);
@@ -352,11 +490,11 @@
     var lines = [
       indent + '<li class="shop-card" data-id="' + escapeHtml(product.id) + '" data-availability="' + escapeHtml(product.availability) + '"' +
         ' data-category="' + escapeHtml(product.category) + '" data-audience="' + escapeHtml(product.audience) + '"' +
-        ' data-collections="' + collections + '">',
+        ' data-collections="' + collections + '"' + reservedAttrs(product) + '>',
       indent + '  <a class="shop-card-photo" href="' + url + '" aria-label="' + name + '">',
       indent + '    <img src="' + escapeHtml(imageUrl(image)) + '" alt="' + escapeHtml(image.alt) + '" loading="lazy">'
     ];
-    if (isReserved(product)) lines.push(indent + '    <span class="shop-card-badge shop-card-badge--reserved">Réservée</span>');
+    if (isReserved(product)) lines.push(indent + '    <span class="shop-card-badge shop-card-badge--reserved" data-while-reserved>Réservée</span>');
     if (isSold(product)) lines.push(indent + '    <span class="shop-card-badge shop-card-badge--sold">Vendue</span>');
     lines.push(
       indent + '  </a>',
@@ -373,12 +511,10 @@
       if (hasPromo(product)) price += '<s class="shop-card-price-old">' + escapeHtml(formatOriginalPrice(product)) + '</s> ';
       price += '<span class="shop-card-price-now">' + escapeHtml(formatPrice(product)) + '</span></p>';
       lines.push(price);
-      if (isReserved(product)) {
-        lines.push(indent + '    <p class="shop-card-until">' + escapeHtml(formatReservedUntil(product, true)) + '</p>');
-      } else {
-        // « Ajouter » (au panier) arrive avec KD-64 ; d'ici là le bouton mène à la page de la pièce
-        lines.push(indent + '    <a class="shop-card-action" href="' + url + '">Voir la pièce</a>');
-      }
+      if (isReserved(product)) lines.push(indent + '    <p class="shop-card-until" data-while-reserved>' + escapeHtml(formatReservedUntil(product, true)) + '</p>');
+      // « Ajouter » (au panier) arrive avec KD-64 ; d'ici là le bouton mène à la page de la pièce.
+      // Sur une réservée il attend, caché, l'échéance.
+      lines.push(indent + '    <a class="shop-card-action" href="' + url + '"' + (isReserved(product) ? ' data-after-reservation hidden' : '') + '>Voir la pièce</a>');
     }
     lines.push(indent + '  </div>', indent + '</li>');
     return lines.join('\n');
@@ -422,6 +558,24 @@
     parseIsoDate: parseIsoDate,
     formatDay: formatDay,
     formatReservedUntil: formatReservedUntil,
+    TIME_ZONE: TIME_ZONE,
+    RESERVATION_DAYS: RESERVATION_DAYS,
+    todayInParis: todayInParis,
+    addDays: addDays,
+    reservationEnd: reservationEnd,
+    isReservationActive: isReservationActive,
+    isReservationExpired: isReservationExpired,
+    effectiveAvailability: effectiveAvailability,
+    settleReservation: settleReservation,
+    returnedToSaleOn: returnedToSaleOn,
+    formatReturnedToSale: formatReturnedToSale,
+    isFutureDay: isFutureDay,
+    channelLabel: channelLabel,
+    isSaleComplete: isSaleComplete,
+    formatSale: formatSale,
+    allowedTransitions: allowedTransitions,
+    canTransition: canTransition,
+    reservedAttrs: reservedAttrs,
     formatAmount: formatAmount,
     formatPrice: formatPrice,
     formatOriginalPrice: formatOriginalPrice,
