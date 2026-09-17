@@ -17,8 +17,6 @@
     --kel-error: #F9866B;    /* 6,8:1 sur --oat sombre */
     --kel-surface: #282521;  /* = --oat-mid sombre : reste un ton plus clair que le fond, comme en clair */
   }
-  /* Le bouton principal passe encre → crème avec la palette ; son texte doit suivre (--white ne bascule pas) */
-  .kel-button { color: var(--oat); }
 }
 
 /* Chaque logo est un <picture> (version claire du logo en mode sombre, KD-101) : transparent
@@ -143,6 +141,13 @@ body {
   border: none;
   border-radius: 22px;
   cursor: pointer;
+}
+
+/* Le bouton principal passe encre → crème avec la palette : son texte doit suivre (--white ne
+   bascule pas). Après la définition, pour l'emporter : à spécificité égale, la dernière règle écrite
+   gagne, et un bloc @media n'y change rien — placée avant, cette règle perdait contre color: var(--white). */
+@media (prefers-color-scheme: dark) {
+  .kel-button { color: var(--oat); }
 }
 
 /* ── Liste ── */
