@@ -19,7 +19,12 @@
    2. la réponse de PATCH /api/admin/products/:id confirme — la pièce est alors rangée dans son
       nouveau groupe — ou la ligne revient en arrière, obligatoirement, avec la raison écrite ;
    3. une fois enregistré : « Enregistré, mise en ligne dans 1 à 2 minutes. » On ne relit pas le
-      site pour vérifier la mise en ligne (ce sera KD-82). */
+      site pour vérifier la mise en ligne (ce sera KD-82).
+
+   Recherche (KD-102) : un champ en tête de liste filtre à chaque frappe sur le nom et la référence,
+   mot par mot dans n'importe quel ordre, sans casse ni accents. Les groupes gardent leur ordre, les
+   compteurs suivent, le résumé dit « N sur T ». Tout se passe dans la page (la liste est déjà là),
+   rien n'est écrit ni mémorisé : champ vide à chaque ouverture. */
 
 (function () {
   'use strict';
@@ -65,12 +70,20 @@
     saleChannels: document.getElementById('sale-channels'),
     saleDate: document.getElementById('sale-date'),
     saleError: document.getElementById('sale-error'),
-    saleCancel: document.getElementById('sale-cancel')
+    saleCancel: document.getElementById('sale-cancel'),
+    searchForm: document.getElementById('search-form'),
+    search: document.getElementById('search'),
+    searchClear: document.getElementById('search-clear'),
+    empty: document.getElementById('empty'),
+    emptyText: document.getElementById('empty-text'),
+    emptyClear: document.getElementById('empty-clear')
   };
 
   var products = [];   // la liste telle que l'API l'a donnée, mise à jour par ses réponses
   var rows = {};       // id → <li> affiché
   var inflight = {};   // id → état espéré d'une écriture en vol : un rendu complet le garde, verrou compris
+  var rowErrors = {};  // id → raison du dernier refus : un rendu complet (une frappe) ne l'efface pas
+  var query = '';      // la recherche en cours, telle que tapée
   var pending = 0;     // écritures en vol : le statut global reste allumé tant qu'il y en a
   var toastTimer = null;
 
@@ -134,12 +147,16 @@
   function load() {
     show(els.loading);
     hide(els.error);
+    hide(els.searchForm);
+    hide(els.empty);
+    rowErrors = {}; // la liste revient du serveur : les refus d'avant ne la décrivent plus
     els.groups.textContent = '';
     els.summary.textContent = '';
     api(API)
       .then(function (data) {
         hide(els.loading);
         products = data.products;
+        els.searchForm.hidden = !products.length;
         render();
       })
       .catch(function (err) {
@@ -154,15 +171,29 @@
 
   function stateOf(product) { return catalog.effectiveAvailability(product); }
 
-  // Toute la liste, groupée par état effectif : une pièce qui change d'état change de groupe.
-  // Les groupes vides n'apparaissent pas. Rendu complet à chaque fois : la liste est courte.
+  // Toute la liste, groupée par état effectif, réduite aux pièces qui répondent à la recherche :
+  // une pièce qui change d'état change de groupe, un groupe sans pièce n'apparaît pas. Rendu complet
+  // à chaque fois (chargement, réponse d'une écriture, frappe) : une centaine de lignes, quelques
+  // millisecondes.
   function render() {
+    var words = queryWords(query);
+    var filtering = words.length > 0;
     var fragment = document.createDocumentFragment();
     var counts = {};
+    var matched = 0;
     rows = {};
+    // Une passe : l'état effectif (Intl, à chaque appel) et la correspondance sont jugés une fois par
+    // pièce, pas une fois par groupe — c'est ce qui coûte, pas les lignes
+    var byState = {};
+    products.forEach(function (p) {
+      if (filtering && !matches(p, words)) return;
+      var state = stateOf(p);
+      (byState[state] = byState[state] || []).push(p);
+    });
     GROUPS.forEach(function (group) {
-      var members = products.filter(function (p) { return stateOf(p) === group.state; });
+      var members = byState[group.state] || [];
       counts[group.state] = members.length;
+      matched += members.length;
       if (!members.length) return;
       var section = els.groupTemplate.content.firstElementChild.cloneNode(true);
       section.dataset.state = group.state;
@@ -179,7 +210,8 @@
     });
     els.groups.textContent = '';
     els.groups.appendChild(fragment);
-    updateSummary(counts);
+    updateSummary(counts, matched, filtering);
+    updateEmpty(filtering && !matched);
   }
 
   function renderRow(product) {
@@ -204,6 +236,11 @@
     // espéré et son verrou jusqu'à sa propre réponse
     applyState(row, inflight[product.id] || product);
     if (inflight[product.id]) setBusy(row, true);
+    if (rowErrors[product.id]) {
+      var errorEl = row.querySelector('.kel-row-error');
+      errorEl.textContent = rowErrors[product.id];
+      show(errorEl);
+    }
     return row;
   }
 
@@ -507,6 +544,7 @@
 
     // 1. Tout de suite
     hide(errorEl);
+    delete rowErrors[product.id];
     inflight[product.id] = expected(product, target, sale);
     applyState(row, inflight[product.id]);
     setBusy(row, true);
@@ -537,8 +575,9 @@
         setBusy(current, false);
         endPending();
         if (err instanceof SessionExpired) return reconnect();
+        rowErrors[product.id] = err instanceof ApiError ? err.message : NETWORK_MESSAGE;
         var currentError = current.querySelector('.kel-row-error');
-        currentError.textContent = err instanceof ApiError ? err.message : NETWORK_MESSAGE;
+        currentError.textContent = rowErrors[product.id];
         show(currentError);
       });
   }
@@ -562,8 +601,14 @@
     toastTimer = window.setTimeout(function () { hide(els.toast); }, 5000);
   }
 
-  // « 12 en vente · 1 réservée · 3 vendues » : les groupes vides ne sont pas cités
-  function updateSummary(counts) {
+  // « 12 en vente · 1 réservée · 3 vendues » : les groupes vides ne sont pas cités. Sous filtre :
+  // « 2 sur 17 » — le filtre actif et le total restent visibles (des pièces ne « disparaissent »
+  // pas), la répartition par état est portée par les compteurs de groupe.
+  function updateSummary(counts, matched, filtering) {
+    if (filtering) {
+      els.summary.textContent = matched + ' sur ' + products.length;
+      return;
+    }
     var parts = [];
     GROUPS.forEach(function (group) {
       var n = counts[group.state] || 0;
@@ -571,6 +616,61 @@
     });
     els.summary.textContent = parts.join(' · ');
   }
+
+  function updateEmpty(visible) {
+    els.emptyText.textContent = visible ? 'Aucune pièce ne correspond à «\u00a0' + query.trim() + '\u00a0».' : '';
+    els.empty.hidden = !visible;
+  }
+
+  /* ── Recherche ── */
+
+  // Un texte prêt à être comparé : sans accents (décomposition NFD, marques diacritiques retirées)
+  // et en minuscules. Sans « normalize » (navigateur ancien), la casse seule est neutralisée — la
+  // recherche marche, aux accents près.
+  function fold(text) {
+    var value = String(text == null ? '' : text);
+    if (typeof value.normalize === 'function') value = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return value.toLowerCase();
+  }
+
+  // Les mots de la saisie, pliés : « Velours  Herbier » → ['velours', 'herbier']
+  function queryWords(text) {
+    return fold(text).split(/\s+/).filter(Boolean);
+  }
+
+  // Une pièce correspond si chacun des mots est dans son nom ou dans sa référence, dans n'importe
+  // quel ordre (« velours herbier » trouve « Herbier Jaune Velours »). La référence se compare comme
+  // build.js la dédoublonne (catalog.normalizeReference : « bo-023 » = « BO023 ») ; un mot qui n'y
+  // laisse rien (« é ») ne la consulte pas, sinon il correspondrait à toutes.
+  function matches(product, words) {
+    var name = fold(product.name);
+    var reference = catalog.normalizeReference(product.reference);
+    return words.every(function (word) {
+      if (name.indexOf(word) !== -1) return true;
+      var ref = catalog.normalizeReference(word);
+      return ref !== '' && reference.indexOf(ref) !== -1;
+    });
+  }
+
+  function setQuery(text) {
+    query = text;
+    els.searchClear.hidden = !query;
+    render();
+  }
+
+  // La croix vide et redonne le champ (clavier ouvert, prête à retaper) ; le bouton de l'état vide
+  // rend la liste sans rouvrir le clavier
+  function clearSearch(refocus) {
+    els.search.value = '';
+    setQuery('');
+    if (refocus) els.search.focus();
+  }
+
+  els.search.addEventListener('input', function () { setQuery(els.search.value); });
+  // « Rechercher » sur le clavier : rien à envoyer, on replie le clavier pour voir les résultats
+  els.searchForm.addEventListener('submit', function (event) { event.preventDefault(); els.search.blur(); });
+  els.searchClear.addEventListener('click', function () { clearSearch(true); });
+  els.emptyClear.addEventListener('click', function () { clearSearch(false); });
 
   /* ── Démarrage ── */
 

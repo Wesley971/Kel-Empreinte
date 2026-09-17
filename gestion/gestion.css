@@ -111,6 +111,110 @@ body {
   padding: 16px 16px 96px; /* place pour le toast en bas */
 }
 
+/* ── Recherche (KD-102) : en tête de liste, défile avec elle ── */
+
+/* Le champ occupe la largeur, 44 px de haut ; la loupe (dessinée en CSS, comme le chevron des
+   pastilles) à gauche, la croix à droite, le texte entre les deux. Même surface et même bord que les
+   cartes : c'est un élément de la liste, pas de l'en-tête. */
+.kel-search {
+  position: relative;
+  margin: 0 0 12px;
+}
+
+.kel-search input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 48px 0 40px;
+  font: inherit;
+  font-size: 16px; /* jamais moins : iOS zoome sur un champ plus petit */
+  color: var(--ink);
+  background: var(--kel-surface);
+  border: 1px solid var(--oat-deep);
+  border-radius: 12px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.kel-search input::placeholder { color: var(--ink-faint); opacity: 1; }
+.kel-search input:focus-visible { outline: 2px solid var(--terra); outline-offset: 1px; border-color: var(--terra); }
+
+/* La croix native de WebKit ferait doublon avec la nôtre (qui a une vraie cible tactile) */
+.kel-search input::-webkit-search-cancel-button,
+.kel-search input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; display: none; }
+
+/* Loupe : un cercle et son manche */
+.kel-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -8px;
+  border: 1.5px solid var(--ink-muted);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.kel-search-icon::after {
+  content: "";
+  position: absolute;
+  right: -5px;
+  bottom: -4px;
+  width: 6px;
+  height: 1.5px;
+  background: var(--ink-muted);
+  transform: rotate(45deg);
+}
+
+/* Croix : cible 44 × 44 collée au bord droit du champ, visible seulement quand il y a une saisie */
+.kel-search-clear {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--ink-muted);
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.kel-search-clear:hover { color: var(--ink); }
+.kel-search-clear:focus-visible { outline: 2px solid var(--terra); outline-offset: -4px; }
+
+/* Aucune pièce ne correspond : une phrase et le moyen d'en sortir */
+.kel-empty {
+  margin: 24px 0;
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--ink-muted);
+  background: var(--kel-surface);
+  border: 1px dashed var(--ink-faint);
+  border-radius: 12px;
+}
+
+.kel-empty p { margin: 0 0 16px; overflow-wrap: anywhere; }
+
+/* Lu par les lecteurs d'écran, invisible à l'écran (le champ a son placeholder) */
+.kel-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 .kel-summary {
   margin: 0 0 12px;
   font-size: 14px;

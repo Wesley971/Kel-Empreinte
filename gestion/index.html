@@ -41,6 +41,16 @@
   </div>
 
   <main class="kel-main">
+    <!-- Recherche (KD-102) : filtre la liste en direct sur le nom et la référence, mot par mot, sans
+         casse ni accents. Rien n'est écrit, rien n'est mémorisé : champ vide à chaque ouverture. Elle
+         défile avec la liste ; la zone collante reste à l'en-tête et au statut. Montrée une fois la
+         liste chargée. -->
+    <form class="kel-search" id="search-form" role="search" hidden>
+      <label class="kel-visually-hidden" for="search">Rechercher une pièce par son nom ou sa référence</label>
+      <span class="kel-search-icon" aria-hidden="true"></span>
+      <input type="search" id="search" name="q" placeholder="Nom ou référence" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search" />
+      <button type="button" class="kel-search-clear" id="search-clear" aria-label="Effacer la recherche" hidden>×</button>
+    </form>
     <p class="kel-summary" id="summary" aria-live="polite"></p>
     <p class="kel-loading" id="loading">Chargement de vos bijoux…</p>
     <div class="kel-error" id="error" role="alert" hidden>
@@ -49,6 +59,11 @@
     </div>
     <!-- Les groupes (En vente, Réservées, Brouillons, Vendues, Retirées) sont rendus ici -->
     <div id="groups"></div>
+    <!-- Aucune pièce ne correspond à la recherche -->
+    <div class="kel-empty" id="empty" hidden>
+      <p id="empty-text"></p>
+      <button type="button" class="kel-button kel-button--secondary" id="empty-clear">Effacer la recherche</button>
+    </div>
   </main>
 
   <!-- Confirmation après enregistrement -->
