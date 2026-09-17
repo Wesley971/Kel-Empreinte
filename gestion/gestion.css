@@ -1,21 +1,26 @@
 @charset "utf-8";
-/* Écran « Mes bijoux » — /gestion/ (KD-92).
+/* Écran « Mes bijoux » — /gestion/ (KD-92, cinq états avec KD-98).
 
    Mobile d'abord : Prescilia gère ses pièces depuis son téléphone. Une colonne, des cibles
-   tactiles d'au moins 44 px, du texte lisible sans zoom. Les couleurs viennent de tokens.css
-   (la palette du site) ; seules les couleurs sémantiques que le site n'a pas — l'erreur, la
-   surface des lignes — sont définies ici, avec leur version sombre (KD-101 : la palette de
-   tokens.css bascule d'elle-même, ces deux-là doivent suivre). */
+   tactiles d'au moins 44 px, du texte lisible sans zoom, des feuilles qui montent du bas de
+   l'écran (pouce). Les couleurs viennent de tokens.css (la palette du site) ; seules les couleurs
+   sémantiques que le site n'a pas — l'erreur, la surface des lignes — sont définies ici, avec
+   leur version sombre (KD-101 : la palette de tokens.css bascule d'elle-même, ces deux-là doivent
+   suivre). */
 
 :root {
   --kel-error: #A63D2A;        /* rouge terre : 5,9:1 sur blanc, cohérent avec --terra */
-  --kel-surface: var(--white); /* lignes de la liste et bloc d'erreur : un ton plus clair que le fond */
+  --kel-error-ghost: rgba(166, 61, 42, 0.08); /* fond du refus dans une carte, comme --terra-ghost */
+  --kel-surface: var(--white); /* lignes de la liste, feuilles et bloc d'erreur : un ton plus clair que le fond */
+  --kel-backdrop: rgba(26, 23, 20, 0.45);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --kel-error: #F9866B;    /* 6,8:1 sur --oat sombre */
+    --kel-error-ghost: rgba(249, 134, 107, 0.12);
     --kel-surface: #282521;  /* = --oat-mid sombre : reste un ton plus clair que le fond, comme en clair */
+    --kel-backdrop: rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -143,11 +148,52 @@ body {
   cursor: pointer;
 }
 
+.kel-button--secondary {
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--ink-faint);
+}
+
 /* Le bouton principal passe encre → crème avec la palette : son texte doit suivre (--white ne
-   bascule pas). Après la définition, pour l'emporter : à spécificité égale, la dernière règle écrite
-   gagne, et un bloc @media n'y change rien — placée avant, cette règle perdait contre color: var(--white). */
+   bascule pas) ; le secondaire garde le texte de la palette. Après les définitions, pour l'emporter. */
 @media (prefers-color-scheme: dark) {
   .kel-button { color: var(--oat); }
+  .kel-button--secondary { color: var(--ink); }
+}
+
+.kel-button:focus-visible,
+.kel-state:focus-visible,
+.kel-quick:focus-visible,
+.kel-action:focus-visible {
+  outline: 2px solid var(--terra);
+  outline-offset: 2px;
+}
+
+/* ── Groupes : un titre discret, la liste ── */
+
+.kel-group { margin: 0 0 22px; }
+
+.kel-group-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.kel-group-count {
+  display: inline-block;
+  min-width: 20px;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 20px;
+  text-align: center;
+  letter-spacing: 0;
+  color: var(--ink-soft);
+  background: var(--oat-deep);
 }
 
 /* ── Liste ── */
@@ -158,26 +204,40 @@ body {
   padding: 0;
 }
 
+/* Une grille : la photo à gauche ; à droite, sur toute la largeur, le nom, sa ligne référence · type ·
+   prix, le détail de l'état, puis les boutons sur une ligne. Rien ne se coupe, et une carte tient en
+   trois lignes de texte : la liste des 100 pièces reste parcourable. */
 .kel-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  margin-bottom: 10px;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  grid-template-areas:
+    "photo body"
+    "photo foot"
+    "photo actions";
+  column-gap: 12px;
+  row-gap: 0;
+  align-items: start;
+  padding: 10px 12px;
+  margin-bottom: 8px;
   background: var(--kel-surface);
   border: 1px solid var(--oat-deep);
   border-radius: 12px;
 }
 
+.kel-row-photo { grid-area: photo; }
+.kel-row-body { grid-area: body; }
+.kel-row-actions { grid-area: actions; }
+.kel-row-foot { grid-area: foot; }
+
 /* Une pièce qui n'est pas en vente s'efface un peu ; sa photo reste nette pour rester
    reconnaissable d'un coup d'œil */
 .kel-row[data-availability="vendue"] .kel-row-name,
-.kel-row[data-availability="bientot"] .kel-row-name { color: var(--ink-soft); }
+.kel-row[data-availability="retiree"] .kel-row-name,
+.kel-row[data-availability="brouillon"] .kel-row-name { color: var(--ink-soft); }
 
 .kel-row-photo {
-  flex: none;
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   border-radius: 8px;
   overflow: hidden;
   background: linear-gradient(160deg, var(--oat-deep) 0%, var(--terra-ghost) 50%, var(--oat-mid) 100%);
@@ -190,101 +250,345 @@ body {
   object-fit: cover;
 }
 
-.kel-row-body { flex: 1 1 auto; min-width: 0; }
+.kel-row-body, .kel-row-foot { min-width: 0; }
 
-.kel-row-body p { margin: 0; }
+.kel-row-body p, .kel-row-foot p { margin: 0; }
 
+/* Le nom est ce qu'on lit d'abord : plus grand, plus gras et plus sombre que tout le reste de la carte */
 .kel-row-name {
+  font-size: 15px;
+  line-height: 1.3;
   font-weight: 600;
+  color: var(--ink);
   overflow-wrap: anywhere;
 }
 
 .kel-row-meta,
-.kel-row-state,
+.kel-row-note,
 .kel-row-hint {
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.4;
   color: var(--ink-muted);
 }
 
-.kel-row-state { font-weight: 500; }
-.kel-row[data-availability="disponible"] .kel-row-state { color: var(--amber-deep); }
+.kel-row-meta s { color: var(--ink-faint); margin-right: 2px; }
+
+/* La ligne de détail sous le nom : « Réservée jusqu'au 22 septembre inclus », « Vendue le 15 sept. ·
+   45 € · Etsy », « Remise en vente le 17 sept. » (la réservation a expiré toute seule) */
+.kel-row-note { font-weight: 500; }
+.kel-row[data-availability="disponible"] .kel-row-note,
+.kel-row[data-availability="reservee"] .kel-row-note { color: var(--amber-deep); }
 
 .kel-row-hint { font-style: italic; }
 
-.kel-row-body .kel-row-error {
-  margin-top: 4px;
-  font-size: 14px;
-  color: var(--kel-error);
+/* Le refus de l'API explique pourquoi le geste a échoué : il doit se voir. Même signal que le bloc
+   d'erreur de page (filet rouge à gauche, surface distincte), plus un pictogramme « ! » dessiné en
+   CSS comme le chevron de la pastille. Le texte reste encre : la couleur porte le signal, pas la
+   lecture. role="alert" dans le gabarit le fait lire aux lecteurs d'écran dès qu'il apparaît. */
+.kel-row-foot .kel-row-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--kel-error-ghost);
+  border-left: 3px solid var(--kel-error);
+  border-radius: 0 8px 8px 0;
 }
 
-/* ── Interrupteur : un bouton role="switch" ; la zone cliquable dépasse la piste ── */
+.kel-row-foot .kel-row-error[hidden] { display: none; }
 
-.kel-switch {
+.kel-row-error::before {
+  content: "!";
   flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 0.5px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  color: var(--kel-surface);
+  background: var(--kel-error);
+  border-radius: 50%;
+}
+
+/* La ligne verrouillée pendant l'écriture : elle respire, ses boutons attendent */
+.kel-row[aria-busy="true"] .kel-state,
+.kel-row[aria-busy="true"] .kel-quick { animation: kel-pulse 1s ease-in-out infinite; cursor: progress; }
+
+/* ── Pastille d'état et bouton « Marquer vendue », sur une ligne sous le texte ── */
+
+.kel-row-actions {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  gap: 4px;
-  min-width: 56px;
-  min-height: 56px;
-  padding: 4px 2px;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* La pastille est un bouton : elle ouvre la feuille d'actions. Sa couleur dit l'état (un mot) ;
+   le chevron dit qu'elle s'ouvre. Le détail (date, vente) est sur la ligne sous le nom. */
+.kel-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 4px 10px;
   font: inherit;
-  color: var(--ink-muted);
-  background: none;
-  border: none;
-  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: left;
+  color: var(--ink);
+  background: var(--oat-mid);
+  border: 1px solid var(--oat-deep);
+  border-radius: 17px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
 
-.kel-switch:focus-visible {
-  outline: 2px solid var(--terra);
-  outline-offset: 2px;
-}
-
-.kel-switch-track {
-  position: relative;
-  display: block;
-  width: 52px;
-  height: 32px;
-  border-radius: 16px;
-  background: var(--ink-faint);
-  transition: background 0.25s ease;
-}
-
-.kel-switch-thumb {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 26px;
-  height: 26px;
+.kel-state-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--white);
-  box-shadow: 0 1px 3px rgba(26, 23, 20, 0.25);
-  transition: transform 0.25s ease;
+  background: var(--ink-faint);
 }
 
-.kel-switch[aria-checked="true"] .kel-switch-track { background: var(--terra); }
-.kel-switch[aria-checked="true"] .kel-switch-thumb { transform: translateX(20px); }
+.kel-state-text { white-space: nowrap; }
 
-.kel-switch-text {
-  font-size: 11px;
+.kel-state-chevron {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: -3px 0 0 1px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  opacity: 0.6;
+}
+
+.kel-row[data-availability="disponible"] .kel-state { border-color: var(--terra); }
+.kel-row[data-availability="disponible"] .kel-state-dot { background: var(--terra); }
+.kel-row[data-availability="reservee"] .kel-state { color: var(--amber-deep); border-color: var(--amber); background: var(--amber-ghost); }
+.kel-row[data-availability="reservee"] .kel-state-dot { background: var(--amber); }
+.kel-row[data-availability="vendue"] .kel-state,
+.kel-row[data-availability="retiree"] .kel-state { color: var(--ink-muted); background: var(--oat-deep); border-color: var(--oat-deep); }
+.kel-row[data-availability="brouillon"] .kel-state { color: var(--ink-muted); background: transparent; border-style: dashed; border-color: var(--ink-faint); }
+
+/* « Marquer vendue » à un tap : l'action la plus fréquente. Plein et encre, là où la pastille est une
+   puce teintée avec point et chevron : l'un se presse, l'autre s'ouvre — rien à confondre. --ink et
+   --oat basculent ensemble avec la palette, le contraste tient dans les deux modes. */
+.kel-quick {
+  min-height: 32px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--oat);
+  background: var(--ink);
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.kel-quick:hover { background: var(--ink-soft); }
+
+.kel-state:disabled,
+.kel-quick:disabled { cursor: default; }
+
+/* ── Feuilles : dialogues collés en bas de l'écran ── */
+
+.kel-sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  width: 100%;
+  max-width: 40rem;
+  max-height: calc(100dvh - 24px);
+  margin: 0 auto;
+  padding: 0;
+  color: var(--ink);
+  background: var(--kel-surface);
+  border: none;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 32px rgba(26, 23, 20, 0.18);
+  overflow: auto;
+}
+
+.kel-sheet::backdrop { background: var(--kel-backdrop); }
+
+.kel-sheet-body {
+  margin: 0;
+  padding: 20px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+}
+
+.kel-sheet-title {
+  margin: 0 0 4px;
+  font-family: 'Fraunces', serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.kel-sheet-state,
+.kel-sheet-text {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+
+.kel-sheet-state:empty { display: none; }
+
+.kel-sheet-actions { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+
+/* Une action : son nom, puis en petit ce qu'elle fait */
+.kel-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 14px;
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  background: var(--oat-mid);
+  border: 1px solid var(--oat-deep);
+  border-radius: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.kel-action:hover { border-color: var(--ink-faint); }
+.kel-action:disabled { cursor: not-allowed; opacity: 0.55; }
+.kel-action--quiet .kel-action-label { color: var(--ink-soft); }
+
+.kel-action-label { font-weight: 600; }
+.kel-action-detail { font-size: 13px; color: var(--ink-muted); }
+
+.kel-sheet-cancel { width: 100%; }
+
+/* Les boutons restent visibles quand la feuille défile (clavier ouvert : l'écran est court) */
+.kel-sheet-buttons {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 10px;
+  margin: 16px -16px calc(-16px - env(safe-area-inset-bottom, 0px));
+  padding: 10px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--kel-surface);
+  border-top: 1px solid var(--oat-deep); /* dit que la feuille continue dessous quand elle défile */
+}
+
+.kel-sheet-buttons .kel-button { flex: 1 1 0; }
+
+.kel-sheet-error {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: var(--kel-error);
+}
+
+/* ── Champs de la modale « Marquer vendue » ── */
+
+.kel-field {
+  display: block;
+  margin: 0 0 16px;
+  padding: 0;
+  border: none;
+  min-inline-size: 0;
+}
+
+.kel-field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  color: var(--ink-muted);
 }
 
-.kel-switch[aria-checked="true"] .kel-switch-text { color: var(--ink); }
-
-/* En attente de la réponse : verrouillé, la piste respire */
-.kel-switch[aria-busy="true"] { cursor: progress; }
-.kel-switch[aria-busy="true"] .kel-switch-track { animation: kel-pulse 1s ease-in-out infinite; }
-
-/* Désactivé : la pièce ne peut pas passer en vente (la raison est écrite sous son nom) */
-.kel-switch:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
+.kel-field input[type="text"],
+.kel-field input[type="date"] {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 18px;
+  color: var(--ink);
+  background: var(--oat);
+  border: 1px solid var(--ink-faint);
+  border-radius: 12px;
+  color-scheme: light dark;
 }
+
+.kel-field input:focus-visible { outline: 2px solid var(--terra); outline-offset: 1px; border-color: var(--terra); }
+
+/* Libellé et champ sur la même ligne : la barre de boutons collante ne peut pas les séparer */
+.kel-field--inline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.kel-field--inline .kel-field-label { flex: none; margin: 0; }
+.kel-field--inline input[type="date"] { flex: 1 1 auto; min-width: 0; }
+
+.kel-field-amount { position: relative; display: block; }
+.kel-field-amount input { padding-right: 40px; }
+.kel-field-unit {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 18px;
+  color: var(--ink-muted);
+}
+
+.kel-field-help {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+/* Le canal : des pastilles à cocher, larges pour le pouce */
+.kel-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.kel-choice {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 500;
+  border: 1px solid var(--ink-faint);
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+.kel-choice input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+
+.kel-choice:has(input:checked) { color: var(--oat); background: var(--ink); border-color: var(--ink); }
+.kel-choice:has(input:focus-visible) { outline: 2px solid var(--terra); outline-offset: 2px; }
 
 /* ── Toast de confirmation ── */
 
@@ -305,13 +609,17 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .kel-switch-track, .kel-switch-thumb { transition: none; }
-  .kel-status-dot, .kel-switch[aria-busy="true"] .kel-switch-track { animation: none; }
+  .kel-status-dot,
+  .kel-row[aria-busy="true"] .kel-state,
+  .kel-row[aria-busy="true"] .kel-quick { animation: none; }
 }
 
 @media (min-width: 640px) {
   .kel-header { padding: 12px 24px 11px; }
   .kel-main { padding: 24px 24px 96px; }
-  .kel-row { padding: 14px 16px; gap: 16px; }
+  .kel-row { padding: 12px 16px; column-gap: 16px; grid-template-columns: 64px minmax(0, 1fr); }
   .kel-row-photo { width: 64px; height: 64px; }
+  .kel-sheet { inset: auto 0 24px 0; border-radius: 20px; }
+  .kel-sheet-body { padding: 24px; }
+  .kel-sheet-buttons { margin: 16px -24px -24px; padding: 10px 24px 24px; }
 }

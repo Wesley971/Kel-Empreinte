@@ -16,9 +16,10 @@
   <link rel="stylesheet" href="/gestion/gestion.css" />
 </head>
 <body>
-  <!-- Écran « Mes bijoux » (KD-92) : la liste des pièces et, pour chacune, un interrupteur
-       « En vente ». Tout le comportement est dans gestion.js ; la liste est rendue à partir de
-       GET /api/admin/products (la vérité du dépôt, pas le JSON du site qui a 1 à 2 min de retard). -->
+  <!-- Écran « Mes bijoux » (KD-92, cinq états avec KD-98) : les pièces groupées par état, une
+       pastille d'état qui ouvre la feuille d'actions, « Marquer vendue » à un tap. Tout le
+       comportement est dans gestion.js ; la liste est rendue à partir de GET /api/admin/products
+       (la vérité du dépôt, pas le JSON du site qui a 1 à 2 min de retard). -->
   <!-- En-tête et statut restent visibles en haut de l'écran pendant qu'on fait défiler la liste -->
   <div class="kel-top">
     <header class="kel-header">
@@ -46,11 +47,20 @@
       <p id="error-text"></p>
       <button type="button" class="kel-button" id="retry">Réessayer</button>
     </div>
-    <ul class="kel-list" id="list" aria-label="Vos bijoux"></ul>
+    <!-- Les groupes (En vente, Réservées, Brouillons, Vendues, Retirées) sont rendus ici -->
+    <div id="groups"></div>
   </main>
 
   <!-- Confirmation après enregistrement -->
   <div class="kel-toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- Gabarit d'un groupe ; gestion.js le clone pour chaque état qui a des pièces -->
+  <template id="group-template">
+    <section class="kel-group">
+      <h2 class="kel-group-title"><span class="kel-group-name"></span> <span class="kel-group-count"></span></h2>
+      <ul class="kel-list"></ul>
+    </section>
+  </template>
 
   <!-- Gabarit d'une ligne ; gestion.js le clone pour chaque pièce -->
   <template id="row-template">
@@ -59,16 +69,71 @@
       <div class="kel-row-body">
         <p class="kel-row-name"></p>
         <p class="kel-row-meta"></p>
-        <p class="kel-row-state"></p>
+      </div>
+      <div class="kel-row-actions">
+        <button type="button" class="kel-state" aria-haspopup="dialog"><span class="kel-state-dot" aria-hidden="true"></span><span class="kel-state-text"></span><span class="kel-state-chevron" aria-hidden="true"></span></button>
+        <button type="button" class="kel-quick" hidden>Marquer vendue</button>
+      </div>
+      <!-- Sous le nom et les boutons, sur toute la largeur : le détail de l'état, ce qui manque, l'erreur -->
+      <div class="kel-row-foot">
+        <p class="kel-row-note" hidden></p>
         <p class="kel-row-hint" hidden></p>
         <p class="kel-row-error" role="alert" hidden></p>
       </div>
-      <button type="button" class="kel-switch" role="switch" aria-checked="false">
-        <span class="kel-switch-track" aria-hidden="true"><span class="kel-switch-thumb"></span></span>
-        <span class="kel-switch-text">En vente</span>
-      </button>
     </li>
   </template>
+
+  <!-- Feuille d'actions d'une pièce : ce que son état permet (catalog.js, allowedTransitions) -->
+  <dialog class="kel-sheet" id="sheet" aria-labelledby="sheet-title">
+    <div class="kel-sheet-body">
+      <p class="kel-sheet-title" id="sheet-title"></p>
+      <p class="kel-sheet-state" id="sheet-state"></p>
+      <div class="kel-sheet-actions" id="sheet-actions"></div>
+      <form method="dialog"><button type="submit" class="kel-button kel-button--secondary kel-sheet-cancel" value="cancel">Annuler</button></form>
+    </div>
+  </dialog>
+
+  <!-- Confirmation d'une phrase, pour ce qui ne se défait pas d'un geste -->
+  <dialog class="kel-sheet" id="confirm" aria-labelledby="confirm-title">
+    <form method="dialog" class="kel-sheet-body">
+      <p class="kel-sheet-title" id="confirm-title"></p>
+      <p class="kel-sheet-text" id="confirm-text"></p>
+      <div class="kel-sheet-buttons">
+        <button type="submit" class="kel-button kel-button--secondary" value="cancel">Annuler</button>
+        <button type="submit" class="kel-button" id="confirm-ok" value="ok"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Marquer vendue : montant encaissé (facultatif), canal, date — la date de vente se corrige,
+       jamais au futur ; la date de réservation, elle, ne se saisit nulle part -->
+  <dialog class="kel-sheet" id="sale" aria-labelledby="sale-title">
+    <form class="kel-sheet-body" id="sale-form" novalidate>
+      <p class="kel-sheet-title" id="sale-title">Marquer vendue</p>
+      <p class="kel-sheet-text" id="sale-piece"></p>
+      <label class="kel-field">
+        <span class="kel-field-label">Montant encaissé</span>
+        <span class="kel-field-amount">
+          <input type="text" inputmode="decimal" id="sale-amount" name="amount" placeholder="ex. 45" autocomplete="off" />
+          <span class="kel-field-unit">€</span>
+        </span>
+        <span class="kel-field-help">Ce que vous avez réellement reçu. Vous pourrez le compléter plus tard.</span>
+      </label>
+      <fieldset class="kel-field">
+        <legend class="kel-field-label">Vendue où ?</legend>
+        <div class="kel-choices" id="sale-channels"></div>
+      </fieldset>
+      <label class="kel-field kel-field--inline">
+        <span class="kel-field-label">Date de la vente</span>
+        <input type="date" id="sale-date" name="date" />
+      </label>
+      <p class="kel-sheet-error" id="sale-error" role="alert" hidden></p>
+      <div class="kel-sheet-buttons">
+        <button type="button" class="kel-button kel-button--secondary" id="sale-cancel">Annuler</button>
+        <button type="submit" class="kel-button" id="sale-submit">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="/catalog.js"></script>
   <script src="/gestion/gestion.js"></script>
