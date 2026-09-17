@@ -4,7 +4,7 @@ Site statique (HTML / CSS / JS sans framework) de la marque de bijoux artisanaux
 hébergé sur Cloudflare Pages. Trois pages : l'**accueil** (`/`, la vitrine : histoire, pièces mises
 en avant, collections, FAQ, contact), la **boutique** (`/boutique/`, toutes les pièces, filtrables)
 et une **page par pièce** (`/boutique/<id>/`). Le catalogue vit dans `data/products.json` sur GitHub ;
-la marque le modifie depuis l'espace de gestion (`/gestion`, voir plus bas) et les pages sont
+la marque le modifie depuis l'espace de gestion (`/admin/`, voir plus bas) et les pages sont
 régénérées à chaque déploiement (KD-97, cadrage KD-84). Le panier et le paiement (KD-64) ne sont pas
 encore là : les pages renvoient vers WhatsApp.
 
@@ -16,7 +16,7 @@ encore là : les pages renvoient vers WhatsApp.
 | `templates/boutique.html`, `templates/piece.html` | gabarits sources de la boutique et des pages pièce (mêmes marqueurs) ; `build.js` les remplit et écrit `boutique/`. Déployés avec le site mais **jamais servis** : `functions/templates/[[path]].js` répond 404 (le `_redirects` de Pages ne sait pas produire un 404), et la sonde le vérifie |
 | `boutique/`, `sitemap.xml` | **générés au build, jamais committés** (`.gitignore`) : `boutique/index.html` + une page par pièce visible, plan du site. Vidés et réécrits à chaque `node build.js` |
 | `404.html` | servie par Pages avec un vrai code 404 pour tout chemin inconnu — dont l'adresse d'une pièce passée en brouillon ou retirée |
-| `tokens.css` | les variables CSS du site (palette, courbes, texture) — seule définition, chargée par toutes les pages **avant** leur feuille et par `/gestion/`. Contient aussi la **palette sombre** (voir *Mode sombre*) |
+| `tokens.css` | les variables CSS du site (palette, courbes, texture) — seule définition, chargée par toutes les pages **avant** leur feuille et par `/admin/`. Contient aussi la **palette sombre** (voir *Mode sombre*) |
 | `tooplate-ivory-style.css`, `tooplate-ivory-script.js` | styles de base et comportement de l'accueil (template Tooplate 2166 adapté) |
 | `shop.css` | composants du site marchand : carte d'une pièce, puces de filtre, grille, page pièce, bandes de collections, pied de page, 404 |
 | `site.js` | navigation, menu mobile, verrou de scroll, lightbox — partagé par toutes les pages |
@@ -26,13 +26,12 @@ encore là : les pages renvoient vers WhatsApp.
 | `check-site.js` | sonde : compare le site en ligne au dépôt (voir *Surveillance*) |
 | `check-catalog-drop.js` | garde-fou : repère une chute anormale du nombre de pièces dans un push |
 | `.github/workflows/` | planification des deux contrôles ci-dessus (GitHub Actions) |
-| `data/products.json` | **source de vérité du catalogue**, modifiée par l'espace de gestion (`/gestion`) via les Functions, un commit par modification (voir *Modèle*) |
+| `data/products.json` | **source de vérité du catalogue**, modifiée par l'espace de gestion (`/admin/`) via les Functions, un commit par modification (voir *Modèle*) |
 | `data/collections.json` | les collections nommées (`id`, `name`, `order`, `tagline`, `cover`) : une bande par collection sur l'accueil, dans cet ordre. « Nouveautés » n'y est pas : elle est automatique (les 8 dernières pièces en vente) |
-| `admin/` | Sveltia CMS. `config.yml` = schéma des fiches + titre/logo de l'interface (`app_title`, `logo`) ; `index.html` = en-tête Kel'Empreinte au-dessus du CMS monté dans `#nc-root` (les couleurs de Sveltia elles-mêmes ne sont pas personnalisables) ; `guide.html` = guide « Gérer mes bijoux » pour Prescilia (`noindex`) ; `logo.png` = logo de connexion/favicon ; `manifest.webmanifest` + `icon-*.png` = nom « Mes bijoux » et icône du raccourci « écran d'accueil », à garder devant le script Sveltia qui injecte son propre manifest |
-| `images/` | photos (les uploads du CMS arrivent ici). `images/logo/` : le logo en 200 px, en deux versions — `logo-kel-empreinte.png` (« Empreinte » en encre, appareil clair) et `logo-kel-empreinte-dark-mode.png` (« Empreinte » en crème, appareil sombre) — et l'image de partage `og-image-kel-empreinte.png`. Les sources haute résolution ne sont pas dans le dépôt |
+| `admin/` | l'espace de gestion, derrière Cloudflare Access (voir *Espace de gestion*). `index.html` + `gestion.css` + `gestion.js` = l'écran « Mes bijoux » (les fichiers nomment l'espace, pas le chemin) ; `manifest.webmanifest` + `icon-*.png` = nom « Mes bijoux » et icône opaque (fond crème) du raccourci « écran d'accueil » de Prescilia (KD-66), `start_url` et `scope` `/admin/` ; `guide.html` = **ancien** guide « Gérer mes bijoux », écrit pour Sveltia, remplacé par KD-104 |
+| `images/` | photos des pièces (KD-93 y écrira depuis l'espace de gestion). `images/logo/` : le logo en 200 px, en deux versions — `logo-kel-empreinte.png` (« Empreinte » en encre, appareil clair) et `logo-kel-empreinte-dark-mode.png` (« Empreinte » en crème, appareil sombre) — et l'image de partage `og-image-kel-empreinte.png`. Les sources haute résolution ne sont pas dans le dépôt |
 | `favicon.svg` | favicon qui embarque les deux logos et affiche celui du réglage de l'appareil (Chrome, Firefox) ; Safari ignore les favicons SVG et garde le PNG déclaré avant lui |
 | `functions/` | Cloudflare Pages Functions : les routes `/api/*` (voir *Fonctions serverless*). `_lib/` = modules partagés (réponses JSON, accès GitHub, catalogue — lecture / réécriture fidèle de `products.json`, vérification du jeton Cloudflare Access, `build-info.js` = branche du déploiement, réécrit par `build.js` sur Pages) ; `api/` = les routes, une par fichier |
-| `gestion/` | l'espace de gestion, derrière Cloudflare Access (voir *Espace de gestion*). Chemin provisoire tant que `admin/` est occupé par Sveltia. `index.html` + `gestion.css` + `gestion.js` = l'écran « Mes bijoux » : la liste des pièces et l'interrupteur « En vente » |
 | `.node-version` | version de Node utilisée par le build Cloudflare |
 
 ## Déploiement — Cloudflare Pages
@@ -89,8 +88,8 @@ La palette sombre est **calibrée sur ce que Chrome produisait** (inversion de l
 - les surfaces **sombres par design** dans les deux modes (section « Comment naît chaque pièce »,
   fragment vidéo, lightbox) utilisent les constantes `--night` / `--cream` / `--cream-muted`, qui ne
   basculent pas — pas `--ink` / `--oat`, qui basculent ;
-- `/gestion/` définit ses deux couleurs propres (`--kel-error`, `--kel-surface`) dans les deux modes,
-  dans `gestion.css`.
+- `/admin/` définit ses couleurs propres (`--kel-error`, `--kel-error-ghost`, `--kel-surface`, `--kel-backdrop`)
+  dans les deux modes, dans `admin/gestion.css`.
 
 Pour vérifier un rendu sans changer le réglage de son appareil : DevTools › Rendering › *Emulate CSS
 media feature prefers-color-scheme*. L'icône d'écran d'accueil (manifest) ne peut pas suivre le
@@ -183,31 +182,28 @@ comme des chaînes et l'arithmétique passe par `Date.UTC` : le téléphone d'un
 le poste de build et le Worker en UTC rendent le même verdict à la même seconde, changements d'heure
 compris.
 
-## CMS
+## Historique — Sveltia CMS (retiré le 18/09/2026, KD-95)
 
-`/admin` (Sveltia CMS, connexion GitHub via le worker OAuth `sveltia-cms-auth`) écrit directement
-dans `data/products.json` et `images/` sur `master`. Les champs et leurs règles sont décrits dans
-`admin/config.yml`.
+Jusqu'au pivot boutique, `/admin` servait Sveltia CMS (connexion GitHub via un Worker OAuth
+`sveltia-cms-auth`, écriture directe dans `data/products.json` et `images/`). Hors service depuis le
+renommage du projet et volontairement non réparé (KD-84) : sa configuration décrivait le modèle v1,
+que `build.js` refuse depuis KD-97. Le dossier, le Worker et son application OAuth GitHub ont été
+retirés ; l'espace de gestion ci-dessous a repris le chemin `/admin/`, celui que Prescilia connaît.
 
-**Hors service depuis le renommage du projet** (les variables du worker OAuth n'ont pas suivi) et
-**volontairement non réparé** (décision du 16/09/2026, KD-84) : le site n'est pas encore en service,
-et Sveltia est remplacé par l'espace de gestion sur mesure ci-dessous. Le dossier `admin/`, le worker
-et le contrôle `/admin/` de la sonde disparaissent en phase 3 du chantier, qui tranchera aussi si le
-nouvel espace reprend `/admin` ou reste à `/gestion`.
+## Espace de gestion — `/admin` et Cloudflare Access
 
-## Espace de gestion — `/gestion` et Cloudflare Access
-
-L'espace de gestion (KD-84) vit à **`/gestion/`** — chemin provisoire, `/admin` étant occupé par
-les fichiers de Sveltia — et écrit par les routes **`/api/admin/*`**. Les deux sont protégés par
+L'espace de gestion (KD-84) vit à **`/admin/`** (le chemin provisoire `/gestion/` de KD-91 à KD-95 n'existe
+plus : personne ne l'avait en favori, le site n'étant pas encore en service) et écrit par les routes
+**`/api/admin/*`**. Les deux sont protégés par
 **Cloudflare Access** (Zero Trust) : connexion par **code à usage unique envoyé par mail**, sans
 compte GitHub ni mot de passe. Deux verrous en série : Access à la bordure (redirection vers la page
 de connexion tant qu'il n'y a pas de session), puis le middleware `functions/api/admin/_middleware.js`
-qui revérifie le jeton (voir *Fonctions serverless*). Ce qui est public reste public : `/`, `/admin/`,
+qui revérifie le jeton (voir *Fonctions serverless*). Ce qui est public reste public : `/`,
 `/api/health`, `images/`, `tokens.css`, `catalog.js`.
 
 ### L'écran « Mes bijoux »
 
-`gestion/index.html` + `gestion.css` + `gestion.js`, sans dépendance : la palette vient de `tokens.css`,
+`admin/index.html` + `gestion.css` + `gestion.js`, sans dépendance : la palette vient de `tokens.css`,
 les règles de `catalog.js`. Il liste les pièces lues par `GET /api/admin/products` (la vérité du
 dépôt, pas le JSON servi avec le site qui a 1 à 2 min de retard), **groupées par état effectif** —
 En vente, Réservées, Brouillons, Vendues, Retirées (une réservation échue est « en vente », avec la
@@ -252,7 +248,7 @@ Réglages Zero Trust (dashboard, non versionnés — état au 16/09/2026) :
 |---|---|
 | Équipe | `kelempreinte` → team domain **`kelempreinte.cloudflareaccess.com`** (l'URL de la page de connexion ; le bandeau de cette page peut afficher l'ancien nom auto-généré `hidden-pond-e843`, sans conséquence — l'émetteur du jeton est bien `kelempreinte`, vérifié). Offre Free (50 utilisateurs) : **exige un moyen de paiement enregistré**, sans facturation ; au-delà de 50 sièges les connexions sont bloquées, pas facturées |
 | Méthode de connexion | **One-time PIN** seule (*Settings › Authentication › Login methods*) |
-| Application « production » | *Access controls › Applications* › « Kel'Empreinte — espace de gestion (production) » : hostnames **`kel-empreinte.pages.dev/gestion*`** et **`kel-empreinte.pages.dev/api/admin*`** (le `*` en fin de chemin couvre le chemin nu et ses sous-chemins ; `gestion/*` seul **exclurait** `/gestion`) |
+| Application « production » | *Access controls › Applications* › « Kel'Empreinte — espace de gestion (production) » : hostnames **`kel-empreinte.pages.dev/admin*`** et **`kel-empreinte.pages.dev/api/admin*`** (le `*` en fin de chemin couvre le chemin nu et ses sous-chemins ; `admin/*` seul **exclurait** `/admin`). Une seule application, jamais recréée : son AUD est celui de `CF_ACCESS_AUD`. Le chemin est passé de `gestion*` à `admin*` le 18/09/2026 (KD-95), en ajoutant le nouveau **avant** le déploiement et en retirant l'ancien **après** — jamais de fenêtre sans couverture |
 | Application « previews » | « Kel'Empreinte — espace de gestion (previews) » : hostname **`*.kel-empreinte.pages.dev`**, tout le site des previews. Créée par le bouton *Access policy* du projet Pages |
 | Policy (les deux applications) | une seule, **Allow**, *Include → Emails* : les adresses de Prescilia et de Wesley, rien d'autre |
 | Session | **1 semaine** (les deux applications) |
@@ -271,7 +267,7 @@ My Team › Users* › la personne › *Revoke sessions*.
 **Vérifier** (sans session, la bordure doit rediriger ; ce qui est public ne doit pas l'être) :
 
 ```
-curl -sI https://kel-empreinte.pages.dev/gestion/ | grep -i location     # https://kelempreinte.cloudflareaccess.com/…
+curl -sI https://kel-empreinte.pages.dev/admin/ | grep -i location       # https://kelempreinte.cloudflareaccess.com/…
 curl -sI https://kel-empreinte.pages.dev/api/admin/ | grep -i location   # idem
 curl -sI https://kel-empreinte.pages.dev/ | head -1                      # 200, pas de redirection
 ```
@@ -308,7 +304,7 @@ d'erreur en français prêts à être affichés dans l'espace de gestion.
 
 Dashboard Cloudflare › projet `kel-empreinte` › **Settings › Variables and Secrets** — et surtout
 pas le bloc *Build › Build variables* : une variable de build n'existe pas à l'exécution (erreur déjà
-faite sur le Worker `sveltia-cms-auth`). **Production et Preview se configurent séparément** : une
+faite une fois, sur l'ancien Worker OAuth de Sveltia). **Production et Preview se configurent séparément** : une
 variable posée sur un seul des deux laisse l'autre environnement en 503. Un secret doit exister
 **avant** le déploiement qui l'utilise ; s'il est ajouté après, relancer le dernier déploiement
 (*Retry deployment*) — celui de l'environnement concerné, la liste mêle Production et Preview.
@@ -350,19 +346,19 @@ Sur une preview, remplacer l'hôte par `<branche>.kel-empreinte.pages.dev`.
 Après connexion dans un navigateur, ouvrir `/api/admin/products` : `branch` doit valoir `master` en
 production et le nom de la branche sur une preview — **à vérifier avant la première bascule** sur un
 environnement nouveau. Les logs du déploiement (*Functions*) portent la ligne `build.js : build-info —
-branche …`. Puis une bascule aller-retour dans `/gestion/` : deux commits sur la branche, deux
+branche …`. Puis une bascule aller-retour dans `/admin/` : deux commits sur la branche, deux
 déploiements, et la carte de la boutique qui suit (« Vendue », puis de nouveau en vente).
 
 ## Surveillance
 
 Trois niveaux, trois responsabilités qui ne se recouvrent pas. Toutes les alertes vont au
 mainteneur, jamais à la personne qui édite le catalogue : elle ne pourrait rien en faire, son
-retour d'information passe par les libellés du CMS.
+retour d'information passe par les libellés de l'espace de gestion.
 
 | Niveau | Détecte | Mécanisme | Alerte |
 |---|---|---|---|
 | Validité des données | JSON cassé, champ manquant, image introuvable | `build.js` au déploiement | e-mail Cloudflare « Deployment failed » |
-| Site vs dépôt | boutique injoignable, déploiement échoué ou jamais parti, catalogue amputé en ligne, `/admin` inaccessible, **espace de gestion (`/gestion/`, `/api/admin/`) servi sans redirection Access**, gabarit `/templates/…` servi au lieu d'un 404 | `check-site.js`, toutes les 6 h | e-mail GitHub (workflow en échec) |
+| Site vs dépôt | boutique injoignable, déploiement échoué ou jamais parti, catalogue amputé en ligne, **espace de gestion (`/admin/`, `/api/admin/`) servi sans redirection Access**, gabarit `/templates/…` servi au lieu d'un 404 | `check-site.js`, toutes les 6 h | e-mail GitHub (workflow en échec) |
 | Dépôt vs son état d'avant | catalogue qui perd anormalement des pièces alors que le build réussit | `check-catalog-drop.js`, à chaque push touchant `data/products.json` | e-mail GitHub (workflow en échec) |
 
 La sonde compare le site au dépôt ; le garde-fou compare le dépôt à lui-même. Aucun des deux ne
@@ -395,10 +391,10 @@ voulue (la migration v2 de KD-97, 24 → 17, l'a déclenché une fois, en connai
   — un hôte qui n'existe pas, donc un échec net et indiscutable.
 - Depuis KD-97, `404.html` fait servir un **vrai 404** pour tout chemin inconnu (sans ce fichier, Pages
   servait la page d'accueil en 200 : mesuré sur `/nope`, `/zzz/qqq`). La sonde continue d'exiger des
-  marqueurs de contenu, y compris sur `/admin/` : un 200 seul ne prouve pas que la bonne page est servie.
+  marqueurs de contenu sur la boutique : un 200 seul ne prouve pas que la bonne page est servie.
 - Le garde-fou **détecte, il ne bloque pas** : Cloudflare builde en parallèle de GitHub Actions, un
   catalogue amputé est donc publié, puis signalé dans la minute. L'empêcher supposerait une branche
-  protégée et un flux de pull requests, incompatible avec l'écriture directe du CMS.
+  protégée et un flux de pull requests, incompatible avec l'écriture directe de l'espace de gestion.
 - La sonde s'appuie sur les marqueurs `<!-- build:shop-cards:… -->` et sur `class="shop-count"` de
   `/boutique/` : une refonte de la boutique qui les déplacerait la ferait échouer en boucle. Son message
   d'erreur le dit et nomme le fichier à corriger.
