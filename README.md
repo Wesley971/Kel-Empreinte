@@ -110,9 +110,11 @@ page d'une pièce devenue brouillon ou retirée ne survive. Le script refuse de 
 message qui nomme la pièce et le champ) si : JSON invalide ou vide, champ inconnu ou de l'ancien
 format, identifiant en double ou qui n'est pas un slug, état / type / public inconnu, référence en
 double une fois normalisée, pièce en vente ou réservée sans prix ou sans photo, pièce vendue sans
-photo, réservée sans date, promotion supérieure au prix, collection inconnue, photo sans description
-ou fichier introuvable, marqueur absent ou en double. Un catalogue sans pièce visible **n'est pas une
-erreur** : les pages le disent.
+photo, réservée sans date, vente datée dans le futur (heure de Paris), promotion supérieure au prix,
+collection inconnue, photo sans description ou fichier introuvable, marqueur absent ou en double. Un
+catalogue sans pièce visible **n'est pas une erreur** : les pages le disent. Le catalogue est validé
+tel qu'écrit puis rendu tel que **réglé** à l'instant du build : une réservation échue est rendue
+disponible (voir *Réservation*), et le journal le dit.
 
 Le HTML committé d'`index.html` est un **instantané** : après une modification depuis l'espace de
 gestion, le dépôt est périmé jusqu'au prochain `node build.js` local (Cloudflare, lui, régénère à
@@ -135,15 +137,15 @@ Une liste de pièces **uniques** : pas de stock ni de quantité. Les champs et l
 | `reference` | texte libre ou `null` | la référence de Prescilia (« BO-023 », « BO.R1.4o »), affichée sur les cartes, les pages et dans les messages WhatsApp ; **unique** une fois normalisée (casse, espaces, tirets et points ignorés : `BO023` = `bo-023`). Une pièce retirée garde la sienne : une référence n'est jamais réutilisée |
 | `name`, `category`, `audience` | texte · `boucles-oreilles`, `collier`, `noeud-papillon`, `bague`, `bracelet`, `cravate`, `broche` · `femme`, `homme`, `mixte` | obligatoires sauf en brouillon ; les libellés sont dans `catalog.js`. `mixte` sort sous les deux filtres Femme et Homme. Un type sans pièce n'a pas de puce en boutique |
 | `collections` | liste d'`id` de `collections.json` | facultative, plusieurs possibles |
-| `availability` | `disponible` · `reservee` · `vendue` · `brouillon` · `retiree` | **disponible** : accueil (si mise en avant) et boutique, prix et achat. **reservee** : masquée de l'accueil ; en boutique « Réservée jusqu'au … », sans bouton — la date passée ne remet **jamais** la pièce en vente toute seule. **vendue** : masquée de l'accueil ; en boutique après les autres, photo estompée, « Vendue » et un lien WhatsApp « Une pièce semblable ? » ; sa page reste en ligne (un lien partagé survit à la vente). **brouillon** et **retiree** : nulle part sur le site, pas même une page (→ 404) |
-| `reservedUntil` | date `AAAA-MM-JJ` | obligatoire si `reservee`, interdit sinon |
+| `availability` | `disponible` · `reservee` · `vendue` · `brouillon` · `retiree` | **disponible** : accueil (si mise en avant) et boutique, prix et achat. **reservee** : masquée de l'accueil ; en boutique « Réservée jusqu'au … », sans bouton — **jusqu'à l'échéance seulement** : passé `reservedUntil`, la pièce redevient disponible toute seule (voir *Réservation*). **vendue** : masquée de l'accueil ; en boutique après les autres, photo estompée, « Vendue » et un lien WhatsApp « Une pièce semblable ? » ; sa page reste en ligne (un lien partagé survit à la vente). **brouillon** : jamais publiée, en cours de saisie, seul état supprimable (KD-93) — aucune action ne ramène une pièce publiée en brouillon. **retiree** : publiée puis sortie du site sans être vendue (cassée, offerte, gardée), remise en vente possible. Brouillons et retirées : nulle part sur le site, pas même une page (→ 404) |
+| `reservedUntil` | date `AAAA-MM-JJ` | obligatoire si `reservee`, interdit sinon. **Le dernier jour réservé, inclus** ; jamais saisi : l'API le calcule (jour de la réservation + 13, heure de Paris) |
 | `price`, `promoPrice` | nombres ≥ 0 · `null` | prix obligatoire pour une pièce en vente ou réservée ; `promoPrice` doit être inférieur au prix, il s'affiche alors devant le prix barré |
 | `customization` | `{ "options": [`fleurs` · `couleur` · `taille` · `forme`] }` | liste vide = non personnalisable. Jamais de prix : la page propose « Demander un devis » (WhatsApp, réponse sous 72 h) |
 | `desc`, `materials`, `dimensions` | texte · liste de textes · texte | description **sans limite**, retours à la ligne et emojis conservés (`white-space: pre-line`) |
 | `images` | liste `{ src, alt }` | la première est la vignette partout, toutes sont sur la page pièce. Photo **obligatoire** pour une pièce en vente, réservée ou vendue : l'espace de gestion refuse de mettre en vente une pièce sans photo ou sans prix (règle unique dans `catalog.js`, appliquée par l'écran, l'API et le build) |
 | `featured`, `featuredOrder` | booléen · nombre | mise en avant sur l'accueil, en vente seulement — une pièce réservée ou vendue en sort d'elle-même ; si aucune n'est cochée, l'accueil montre les 4 dernières ajoutées |
 | `createdAt` | date `AAAA-MM-JJ` | obligatoire ; ordonne la boutique (plus récentes d'abord dans chaque état), nourrit « Nouveautés » et le repli de l'accueil |
-| `sale` | `{ amount, channel, date }` ou absent | renseigné quand la pièce passe vendue (montant net encaissé, canal parmi `site`, `sumup`, `whatsapp`, `etsy`, `vinted`, `physique`, date) ; interdit sur une pièce non vendue |
+| `sale` | `{ amount, channel, date }` ou absent | renseigné quand la pièce passe vendue : `amount` = montant **net encaissé** (nombre ≥ 0, ou `null` tant que Prescilia ne l'a pas complété — l'écran le réclame), `channel` parmi `site`, `sumup`, `whatsapp`, `etsy`, `vinted`, `physique`, `date` = jour de la vente, **jamais dans le futur** (à l'heure de Paris). Interdit sur une pièce non vendue ; une vendue remise en vente le perd |
 
 Tout champ inconnu, et tout champ de l'ancien modèle (`heading`, `plainName`, `badge`, `specs`,
 `priceType`, `priceConfirmed`, `customizable`, état `bientot`), fait échouer le build avec un message
@@ -152,6 +154,34 @@ explicite. Un **brouillon** n'est vérifié que sur les types : c'est une saisie
 Les espaces insécables du fichier sont écrits `\u00a0` : les Functions les réécrivent tels quels
 (round-trip identique octet pour octet, couvert par un test), pour que le diff d'un commit de
 l'espace de gestion ne contienne que la modification voulue.
+
+### Réservation — 14 jours fixes, heure de Paris (KD-98)
+
+La règle de Prescilia : une pièce réservée le 1er reste réservée **jusqu'au 14 inclus** et redevient
+disponible **le 15 à 00 h 00, heure de Paris**. Rien ne se saisit ni ne se prolonge : l'API calcule
+`reservedUntil` (jour + 13), et « Remettre en vente » annule la réservation avant terme si la cliente
+renonce. La règle vit **une seule fois**, dans `catalog.js` (`TIME_ZONE = 'Europe/Paris'`,
+`RESERVATION_DAYS = 14`, `todayInParis`, `reservationEnd`, `isReservationActive`,
+`effectiveAvailability`, `settleReservation`), et trois consommateurs l'appliquent à l'identique :
+
+- **`build.js`** rend le catalogue *réglé* à l'instant du build : une réservation échue est une pièce
+  disponible pour toutes les pages (le fichier garde `reservee` + sa date jusqu'à la prochaine action
+  de Prescilia). Une carte ou une page pièce encore réservée porte `data-reserved-until` et **ses deux
+  visages** : ce qui se montre tant que la réservation tient (`data-while-reserved`) et ce qui la
+  remplace à l'échéance (`data-after-reservation`, caché).
+- **le navigateur** (`shop.js`, boutique et page pièce) compare l'échéance au jour à Paris au
+  chargement et bascule d'un visage à l'autre : la pièce redevient achetable **dès 00 h 00 à Paris, sans
+  attendre un déploiement**. Les textes montrés à Prescilia disent « au matin du 15 octobre », jamais
+  « à minuit ». Sans script, la page reste telle que construite — réservée, le sens sûr. Le
+  carrousel de l'accueil, lui, ne se met à jour qu'au déploiement suivant (une pièce mise en avant
+  dont la réservation expire y réapparaît alors) — connu, accepté, à revoir avant la mise en service.
+- **la Function de checkout** (KD-64) jugera la disponibilité avec `effectiveAvailability` : une
+  réservation échue compte comme disponible.
+
+Le fuseau est écrit dans le code, jamais pris sur l'appareil ; les jours `AAAA-MM-JJ` se comparent
+comme des chaînes et l'arithmétique passe par `Date.UTC` : le téléphone d'une visiteuse à l'étranger,
+le poste de build et le Worker en UTC rendent le même verdict à la même seconde, changements d'heure
+compris.
 
 ## CMS
 
@@ -179,21 +209,28 @@ qui revérifie le jeton (voir *Fonctions serverless*). Ce qui est public reste p
 
 `gestion/index.html` + `gestion.css` + `gestion.js`, sans dépendance : la palette vient de `tokens.css`,
 les règles de `catalog.js`. Il liste les pièces lues par `GET /api/admin/products` (la vérité du
-dépôt, pas le JSON servi avec le site qui a 1 à 2 min de retard), dans l'ordre du fichier — les
-vendues à la fin, l'ordre est celui du chargement et ne bouge pas pendant la session. Chaque ligne :
-photo, nom, type, prix, et un interrupteur **« En vente »** (`PATCH /api/admin/products/:id`).
+dépôt, pas le JSON servi avec le site qui a 1 à 2 min de retard), **groupées par état effectif** —
+En vente, Réservées, Brouillons, Vendues, Retirées (une réservation échue est « en vente », avec la
+mention « Remise en vente le … ») ; les groupes vides n'apparaissent pas. Chaque ligne : photo, nom,
+référence, type, prix (barré + promo), une **pastille d'état** qui ouvre la feuille d'actions, et
+**« Marquer vendue »** à un tap là où ça a un sens (en vente, réservée).
 
-- **Allumé** = `disponible`. **Éteint** = tout autre état, dont le libellé est écrit sous le nom
-  (« Vendue », « Réservée jusqu'au … », « Brouillon », « Retirée »). *Transitoire* : l'interrupteur ne
-  sait que passer de « en vente » à « vendue » et retour ; le contrôle à cinq états, la réservation
-  avec date et la saisie du montant encaissé arrivent avec KD-98.
-- Une pièce qui ne peut pas passer en vente (sans photo ou sans prix) a son interrupteur
-  **désactivé** et la raison écrite (« À compléter : photo et prix. ») — l'écran ne propose jamais une
-  action que l'API refuserait.
-- Interrupteur **optimiste, en trois temps** : bascule immédiate et verrouillage (statut global
-  « Mise à jour du site en cours » tant qu'une écriture est en vol) → la réponse confirme, ou l'écran
-  **revient en arrière** avec la raison sous la pièce → « Enregistré, mise en ligne dans 1 à 2 minutes. »
-  L'écran ne vérifie pas la mise en ligne (KD-82).
+- La **feuille d'actions** ne propose que ce que `catalog.allowedTransitions` autorise — la même table
+  que l'API (422 pour le reste) : en vente → *Réserver 14 jours* (date calculée affichée, confirmation)
+  · *Marquer vendue* · *Retirer du site* (confirmation) ; réservée → *Marquer vendue* · *Remettre en
+  vente* (annule la réservation, confirmation) ; vendue → *Compléter la vente* (si le montant manque) ·
+  *Remettre en vente* (efface la vente, confirmation) ; brouillon → *Mettre en vente* (désactivé avec la
+  raison tant qu'il manque photo ou prix) ; retirée → *Remettre en vente*. Aucune action ne mène vers
+  brouillon ; aucune date de réservation ne se saisit.
+- **« Marquer vendue »** : modale courte — montant encaissé (facultatif, `inputmode="decimal"`, « 12,50 »
+  accepté), canal (six pastilles), date préremplie au jour à Paris, modifiable pour une vente passée,
+  jamais dans le futur. Vérifications dans l'écran **et** par l'API.
+- Écriture **optimiste, en trois temps** : la ligne prend l'état espéré et se verrouille (statut global
+  « Mise à jour du site en cours » tant qu'une écriture est en vol) → la réponse confirme et la pièce
+  rejoint son groupe, ou la ligne **revient en arrière** avec la raison écrite dessous → « Enregistré,
+  mise en ligne dans 1 à 2 minutes. » L'écran ne vérifie pas la mise en ligne (KD-82).
+- Les feuilles sont des `<dialog>` collés en bas de l'écran (pouce), boutons collants quand le clavier
+  réduit la hauteur ; toucher le fond ferme.
 - Session Access expirée en cours d'usage : l'API répond par une redirection, l'écran la détecte
   (`fetch` en `redirect: 'manual'`) et recharge la page, qui repasse par la connexion. Un garde-fou
   évite une boucle de rechargements.
@@ -252,7 +289,7 @@ ligne SumUp.
 | `GET /api/health` | preuve de vie : lit `data/products.json` sur GitHub avec le token et répond `{ ok, github, products, checkedAt }` (200) ou `{ ok: false, … }` (503). Publique, mise en cache 5 min (1 min en échec) pour ne pas consommer le quota GitHub ; `checkedAt` date la lecture GitHub réelle — deux réponses avec le même `checkedAt` viennent du cache. Ne révèle que le nombre de pièces, un état et cette date — le détail des erreurs est dans les logs Cloudflare (*Functions › Real-time logs*) |
 | `/api/admin/*` | les routes de l'espace de gestion. Derrière Cloudflare Access à la bordure (voir *Espace de gestion*), puis `functions/api/admin/_middleware.js` revérifie le jeton : **503** si les variables Access manquent, **401** sans jeton valide. Fermé par défaut, sans exception |
 | `GET /api/admin/products` | la liste des pièces lue sur GitHub, dans l'ordre d'affichage, et `branch` : la branche sur laquelle ce déploiement écrirait (`master` en production, la branche de la preview sinon, `null` = écriture impossible). À vérifier avant la première bascule sur un nouvel environnement |
-| `PATCH /api/admin/products/:id` | corps `{ "availability": "disponible" \| "vendue" \| "brouillon" \| "retiree" }`, rien d'autre (`reservee` est refusé : une réservation demande une date, KD-98). Lit `products.json`, modifie l'état — en retirant `reservedUntil` ou `sale` si la pièce quitte l'état correspondant, pour que le fichier reste valide —, réécrit le fichier en **un commit** sur la branche du déploiement (auteur : l'adresse `noreply` GitHub du propriétaire du token, jamais une adresse personnelle — le dépôt est public ; message `content(catalog): mark "<nom>" as <état>` + « via l'espace de gestion »). **200** `{ product, commit }` ou `{ product, unchanged: true }` · **400** corps invalide · **404** pièce inconnue · **422** état inconnu ou pièce qui ne peut pas passer en vente (règle de `catalog.js`) · **409** deux écritures se sont croisées deux fois de suite (une relecture + un nouvel essai sont faits avant) · **502** GitHub en erreur (401/403 = jeton expiré ?, 404 = branche disparue) · **503** environnement sans token ou sans branche connue |
+| `PATCH /api/admin/products/:id` | corps `{ "availability": <état>, "sale"?: { amount, channel, date } }`, rien d'autre — un `reservedUntil` dans le corps est refusé (400) : la date de réservation se calcule. Les transitions sont celles de `catalog.allowedTransitions` (une publiée ne redevient pas brouillon, une réservée active ne se réserve pas à nouveau, `vendue → vendue` avec `sale` complète la vente). `reservee` écrit `reservedUntil` = jour à Paris + 13 ; quitter un état retire `reservedUntil` ou `sale`, pour que le fichier reste valide. Réécrit le fichier en **un commit** sur la branche du déploiement (auteur : l'adresse `noreply` GitHub du propriétaire du token, jamais une adresse personnelle — le dépôt est public ; message `content(catalog): mark "<nom>" as <état>` ou `record the sale of "<nom>"` + « via l'espace de gestion »). **200** `{ product, commit }` ou `{ product, unchanged: true }` · **400** corps invalide, champ inattendu, date de réservation envoyée · **404** pièce inconnue · **422** état inconnu, transition refusée, vente mal renseignée (canal, date au futur, montant négatif), pièce qui ne peut pas passer en vente ou réservée (règle de `catalog.js`) · **409** deux écritures se sont croisées deux fois de suite (une relecture + un nouvel essai, transition rejugée, sont faits avant) · **502** GitHub en erreur (401/403 = jeton expiré ?, 404 = branche disparue) · **503** environnement sans token ou sans branche connue |
 | tout autre `/api/*` | 404 JSON — au lieu de la page d'accueil en 200 que Pages sert pour un chemin inconnu ; **405** avec `Allow` pour une route existante appelée avec la mauvaise méthode |
 
 Toutes les réponses sont en JSON, `Cache-Control: no-store` sauf mention contraire, messages
