@@ -43,10 +43,10 @@ img { display: block; max-width: 100%; height: auto; }
   display: flex;
   align-items: center;
   gap: 0;
-  background: rgba(252, 250, 248, 0.65);
+  background: var(--glass);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(26, 23, 20, 0.06);
+  border: 1px solid var(--hairline);
   border-radius: 999px;
   padding: 6px 8px;
   box-shadow: 0 4px 24px rgba(26, 23, 20, 0.06);
@@ -116,7 +116,7 @@ img { display: block; max-width: 100%; height: auto; }
 }
 
 .est-label--on-dark {
-  color: var(--ink-faint);
+  color: var(--cream-muted);
 }
 
 /* ═══════════════════════════════════════════════
@@ -153,8 +153,8 @@ img { display: block; max-width: 100%; height: auto; }
 .cta-link--dark { color: var(--ink); }
 .cta-link--dark::after { background: var(--ink); }
 
-.cta-link--light { color: var(--oat); }
-.cta-link--light::after { background: var(--oat); }
+.cta-link--light { color: var(--cream); }
+.cta-link--light::after { background: var(--cream); }
 
 /* ═══════════════════════════════════════════════
    SECTION LAYOUT (scroll classique)
@@ -260,10 +260,11 @@ img { display: block; max-width: 100%; height: auto; }
 
 /* ═══════════════════════════════════════════════
    SECTION 4: THE PROCESS (Vertical Timeline)
+   Sombre par design : couleurs constantes --night / --cream / --cream-muted
    ═══════════════════════════════════════════════ */
 .process {
-  background: var(--ink);
-  color: var(--oat);
+  background: var(--night);
+  color: var(--cream);
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -295,7 +296,7 @@ img { display: block; max-width: 100%; height: auto; }
 .process-subtitle {
   font-size: 15px;
   font-weight: 300;
-  color: var(--ink-faint);
+  color: var(--cream-muted);
   line-height: 1.8;
   max-width: 340px;
 }
@@ -327,7 +328,7 @@ img { display: block; max-width: 100%; height: auto; }
   height: 7px;
   border-radius: 50%;
   border: 1.5px solid var(--terra);
-  background: var(--ink);
+  background: var(--night);
   transition: background 0.5s var(--ease-soft);
 }
 
@@ -375,14 +376,14 @@ img { display: block; max-width: 100%; height: auto; }
   font-size: 22px;
   font-weight: 400;
   margin-bottom: 8px;
-  color: var(--oat);
+  color: var(--cream);
 }
 
 .timeline-text {
   font-size: 13px;
   font-weight: 300;
   line-height: 1.75;
-  color: var(--ink-faint);
+  color: var(--cream-muted);
   max-width: 340px;
 }
 
@@ -488,7 +489,7 @@ img { display: block; max-width: 100%; height: auto; }
    SECTION 6: VIDEO FRAGMENT (Grain Overlay)
    ═══════════════════════════════════════════════ */
 .video-fragment {
-  background: var(--ink);
+  background: var(--night);
   position: relative;
   display: flex;
   align-items: center;
@@ -543,14 +544,14 @@ img { display: block; max-width: 100%; height: auto; }
 }
 
 .video-play:hover {
-  border-color: var(--oat);
+  border-color: var(--cream);
   transform: scale(1.1);
 }
 
 .video-play svg {
   width: 20px;
   height: 20px;
-  fill: var(--oat);
+  fill: var(--cream);
   margin-left: 3px;
 }
 
@@ -559,7 +560,7 @@ img { display: block; max-width: 100%; height: auto; }
   font-optical-sizing: auto;
   font-size: clamp(28px, 4vw, 52px);
   font-weight: 300;
-  color: var(--oat);
+  color: var(--cream);
   line-height: 1.15;
   margin-bottom: 16px;
 }
@@ -567,7 +568,7 @@ img { display: block; max-width: 100%; height: auto; }
 .video-caption {
   font-size: 15px;
   font-weight: 300;
-  color: var(--ink-faint);
+  color: var(--cream-muted);
   line-height: 1.7;
   margin-bottom: 28px;
 }
@@ -827,7 +828,7 @@ img { display: block; max-width: 100%; height: auto; }
   font-optical-sizing: auto;
   font-size: clamp(120px, 18vw, 280px);
   font-weight: 300;
-  color: rgba(26, 23, 20, 0.035);
+  color: var(--ghost-text);
   white-space: nowrap;
   pointer-events: none;
   user-select: none;
@@ -930,10 +931,10 @@ img { display: block; max-width: 100%; height: auto; }
   z-index: 2000;
   width: 44px;
   height: 44px;
-  background: rgba(252, 250, 248, 0.92);
+  background: var(--glass-strong);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(26, 23, 20, 0.06);
+  border: 1px solid var(--hairline);
   border-radius: 50%;
   box-shadow: 0 2px 12px rgba(26, 23, 20, 0.08);
   cursor: pointer;
@@ -959,7 +960,7 @@ img { display: block; max-width: 100%; height: auto; }
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(252, 250, 248, 0.97);
+  background: var(--glass-opaque);
   backdrop-filter: blur(20px);
   z-index: 1500;
   flex-direction: column;
@@ -1044,7 +1045,7 @@ body.is-scroll-locked {
   max-width: 520px;
   text-align: center;
   font-family: 'EB Garamond', serif;
-  color: var(--oat);
+  color: var(--cream);
 }
 
 .lightbox-caption-name {
@@ -1083,7 +1084,7 @@ body.is-scroll-locked {
   border-radius: 50%;
   border: none;
   background: rgba(252, 250, 248, 0.12);
-  color: var(--oat);
+  color: var(--cream);
   font-size: 24px;
   line-height: 1;
   cursor: pointer;

@@ -3,11 +3,12 @@
 
    Mobile d'abord : Prescilia gère ses pièces depuis son téléphone. Une colonne, des cibles
    tactiles d'au moins 44 px, du texte lisible sans zoom. Les couleurs viennent de tokens.css
-   (la palette du site) ; seules les couleurs sémantiques que le site n'a pas — l'erreur —
-   sont définies ici. */
+   (la palette du site) ; seules les couleurs sémantiques que le site n'a pas — l'erreur, la
+   surface des lignes — sont définies ici. */
 
 :root {
-  --kel-error: #A63D2A;   /* rouge terre : 5,9:1 sur blanc, cohérent avec --terra */
+  --kel-error: #A63D2A;        /* rouge terre : 5,9:1 sur blanc, cohérent avec --terra */
+  --kel-surface: var(--white); /* lignes de la liste et bloc d'erreur : un ton plus clair que le fond */
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -110,7 +111,7 @@ body {
 .kel-error {
   margin: 24px 0;
   padding: 16px;
-  background: var(--white);
+  background: var(--kel-surface);
   border: 1px solid var(--oat-deep);
   border-left: 4px solid var(--kel-error);
   border-radius: 12px;
@@ -144,7 +145,7 @@ body {
   gap: 12px;
   padding: 12px;
   margin-bottom: 10px;
-  background: var(--white);
+  background: var(--kel-surface);
   border: 1px solid var(--oat-deep);
   border-radius: 12px;
 }

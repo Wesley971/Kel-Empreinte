@@ -27,6 +27,18 @@
   --gold: #AD8A3C;
   --gold-light: #C9A431;
   --gold-ghost: rgba(173, 138, 60, 0.06);
+  /* Surfaces translucides et filets : le même crème et la même encre que ci-dessus, avec une
+     transparence. Définis ici, et non en dur dans les feuilles, pour suivre la palette. */
+  --glass: rgba(252, 250, 248, 0.65);        /* nav en pilule */
+  --glass-strong: rgba(252, 250, 248, 0.92); /* bouton hamburger */
+  --glass-opaque: rgba(252, 250, 248, 0.97); /* menu mobile */
+  --hairline: rgba(26, 23, 20, 0.06);        /* filets de la nav et du hamburger */
+  --ghost-text: rgba(26, 23, 20, 0.035);     /* « Kel'Empreinte » en filigrane de la signature */
+  /* Constantes : les surfaces sombres par design (section « Comment naît chaque pièce »,
+     fragment vidéo, lightbox) et leur texte. Distinctes de --ink / --oat, qui décrivent la page. */
+  --night: #1A1714;
+  --cream: #FCFAF8;
+  --cream-muted: #B8B0A6;
   --ease-soft: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-expo: cubic-bezier(0.22, 1, 0.36, 1);
   --noise-texture: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
