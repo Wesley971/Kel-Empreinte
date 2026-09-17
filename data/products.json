@@ -33,7 +33,7 @@
     "category": "boucles-oreilles",
     "audience": "mixte",
     "collections": [],
-    "availability": "disponible",
+    "availability": "vendue",
     "price": 17,
     "promoPrice": null,
     "customization": {
@@ -50,7 +50,12 @@
     ],
     "featured": false,
     "featuredOrder": null,
-    "createdAt": "2026-09-11"
+    "createdAt": "2026-09-11",
+    "sale": {
+      "amount": 20,
+      "channel": "site",
+      "date": "2026-09-18"
+    }
   },
   {
     "id": "leopard-rose-degrade",
