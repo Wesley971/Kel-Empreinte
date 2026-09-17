@@ -8,8 +8,9 @@
    vrai fichier). Toute autre normalisation (fichier indenté autrement à la main) se produira
    une fois, au premier enregistrement, et sera visible dans le diff de ce commit.
 
-   Les règles d'état (quand une pièce peut passer « en vente ») viennent de catalog.js, le
-   module partagé avec le site et l'écran de gestion : même règle, écrite une fois. */
+   Les règles d'état (quand une pièce peut passer « en vente », quelles transitions existent, la
+   réservation de 14 jours à l'heure de Paris) viennent de catalog.js, le module partagé avec le
+   site et l'écran de gestion : même règle, écrite une fois. */
 
 import catalog from '../../catalog.js';
 import { error } from './http.js';
@@ -18,10 +19,19 @@ import { GitHubError, readRepoFile, writeRepoFile } from './github.js';
 export const PRODUCTS_FILE = 'data/products.json';
 
 export const AVAILABILITIES = catalog.AVAILABILITIES;
+export const STATE_LABELS = catalog.STATE_LABELS;
+export const CHANNELS = catalog.CHANNELS;
 export const sortForDisplay = catalog.sortForDisplay;
 export const displayBlockers = catalog.displayBlockers;
 export const saleBlockers = catalog.saleBlockers;
 export const describeSaleBlockers = catalog.describeSaleBlockers;
+export const canTransition = catalog.canTransition;
+export const isReservationActive = catalog.isReservationActive;
+export const isFutureDay = catalog.isFutureDay;
+export const parseIsoDate = catalog.parseIsoDate;
+export const formatDay = catalog.formatDay;
+export const todayInParis = catalog.todayInParis;
+export const reservationEnd = catalog.reservationEnd;
 
 const NBSP = String.fromCharCode(0xa0); // le caractère lui-même, écrit ainsi pour rester visible
 const NBSP_ESCAPED = '\\u00a0';
@@ -41,6 +51,24 @@ export function serializeProducts(products) {
 
 export function findProduct(products, id) {
   return products.find((product) => product && product.id === id) || null;
+}
+
+// Une copie de la pièce dans son nouvel état, avec l'ordre des clés du fichier : `reservedUntil`
+// juste après `availability`, `sale` en dernier — le diff du commit se lit d'un coup d'œil. Les
+// données qui n'ont plus de sens dans le nouvel état disparaissent (la date d'une pièce qui n'est
+// plus réservée, la vente d'une pièce qui n'est plus vendue) : build.js les refuserait.
+export function withState(product, availability, { reservedUntil, sale } = {}) {
+  const updated = {};
+  Object.keys(product).forEach((key) => {
+    if (key === 'reservedUntil' || key === 'sale') return;
+    updated[key] = product[key];
+    if (key === 'availability') {
+      updated.availability = availability;
+      if (reservedUntil) updated.reservedUntil = reservedUntil;
+    }
+  });
+  if (sale) updated.sale = sale;
+  return updated;
 }
 
 // Renvoie aussi le sha : indispensable pour réécrire sans écraser une modification faite
