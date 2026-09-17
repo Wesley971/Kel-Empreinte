@@ -1,0 +1,843 @@
+@charset "utf-8";
+/* Boutique, pages pièce et sections catalogue de l'accueil — composants du site marchand (KD-97).
+
+   Chargée après tokens.css et tooplate-ivory-style.css par index.html, /boutique/, les pages pièce
+   et 404.html. Elle ne redéfinit aucune couleur : tout vient de tokens.css. Les choix de la
+   maquette : cartes en grille de deux colonnes sur mobile, photo carrée, bouton discret à bordure
+   fine ; puces en pilules, l'active en inversé ; pastilles d'état sur la photo ; ancien prix barré
+   en gris ; collections en bandes horizontales titrées dans la police éditoriale (Fraunces). */
+
+/* ═══════════════════════════════════════════════
+   PAGES : structure
+   ═══════════════════════════════════════════════ */
+.shop,
+.piece,
+.not-found {
+  padding: 120px 64px 96px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* ═══════════════════════════════════════════════
+   CARTE D'UNE PIÈCE — boutique et « Pièces mises en avant »
+   ═══════════════════════════════════════════════ */
+.shop-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 40px 28px;
+}
+
+.shop-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.shop-card[hidden] { display: none; }
+
+.shop-card-photo {
+  position: relative;
+  display: block;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 24px;
+  background: var(--oat-deep);
+  box-shadow: 0 8px 32px rgba(26, 23, 20, 0.06);
+  transition: transform 0.9s var(--ease-soft), box-shadow 0.8s var(--ease-soft);
+}
+
+.shop-card-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 1.2s var(--ease-soft), opacity 0.6s var(--ease-soft);
+}
+
+.shop-card-photo:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(26, 23, 20, 0.1);
+}
+
+.shop-card-photo:hover img { transform: scale(1.03); }
+
+/* Vendue : la photo s'estompe (elle reste désirable : c'est elle qui déclenche « une pièce
+   semblable ? »), le survol lui rend ses couleurs */
+.shop-card[data-availability="vendue"] .shop-card-photo img { opacity: 0.55; }
+.shop-card[data-availability="vendue"] .shop-card-photo:hover img { opacity: 0.85; }
+
+/* Pastille d'état, en haut à gauche de la photo */
+.shop-card-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.shop-card-badge--reserved {
+  background: var(--oat);
+  color: var(--amber-deep);
+  border: 1px solid var(--amber);
+}
+
+.shop-card-badge--sold {
+  background: var(--oat-mid);
+  color: var(--ink-muted);
+  border: 1px solid var(--oat-deep);
+}
+
+.shop-card-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px 6px 0;
+}
+
+.shop-card-name {
+  font-family: 'Fraunces', serif;
+  font-optical-sizing: auto;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.25;
+  color: var(--ink);
+  transition: color 0.4s var(--ease-soft);
+}
+
+.shop-card-name:hover { color: var(--terra); }
+
+.shop-card-ref {
+  font-family: 'EB Garamond', serif;
+  font-size: 13px;
+  font-style: italic;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  margin-top: -4px;
+}
+
+.shop-card-price {
+  font-family: 'Work Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  margin: 0;
+}
+
+/* Promotion : l'ancien prix barré, en gris, devant le nouveau */
+.shop-card-price-old {
+  font-weight: 400;
+  color: var(--ink-faint);
+  margin-right: 6px;
+}
+
+/* « Voir la pièce » aujourd'hui, « Ajouter » avec le panier (KD-64) : bordure fine, jamais plein */
+.shop-card-action {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--ink-faint);
+  border-radius: 999px;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  transition: border-color 0.4s var(--ease-soft), color 0.4s var(--ease-soft), background 0.4s var(--ease-soft);
+}
+
+.shop-card-action:hover {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--oat);
+}
+
+/* Réservée : la date prend la place du bouton */
+.shop-card-until {
+  margin: 4px 0 0;
+  font-family: 'EB Garamond', serif;
+  font-size: 14px;
+  font-style: italic;
+  color: var(--amber-deep);
+}
+
+/* Vendue : le lien accent prend la place du prix et du bouton */
+.shop-card-similar {
+  margin-top: 4px;
+}
+
+/* ═══════════════════════════════════════════════
+   BOUTIQUE : en-tête, filtres, grille
+   ═══════════════════════════════════════════════ */
+.shop-header {
+  max-width: 640px;
+  margin-bottom: 40px;
+}
+
+.shop-eyebrow,
+.piece-eyebrow,
+.not-found-eyebrow {
+  font-family: 'EB Garamond', serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--terra);
+  margin: 0 0 14px;
+}
+
+.shop-title {
+  font-family: 'Fraunces', serif;
+  font-optical-sizing: auto;
+  font-size: clamp(36px, 4.5vw, 64px);
+  font-weight: 300;
+  line-height: 1.05;
+  color: var(--ink);
+  margin: 0 0 18px;
+}
+
+.shop-intro {
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.85;
+  color: var(--ink-muted);
+  margin: 0;
+}
+
+/* Arrivée depuis une collection : mention avec croix, au-dessus des filtres */
+.shop-collection {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 24px;
+  padding: 10px 10px 10px 18px;
+  border-radius: 999px;
+  background: var(--terra-light);
+  font-family: 'Fraunces', serif;
+  font-optical-sizing: auto;
+  font-size: 16px;
+  color: var(--ink);
+}
+
+.shop-collection[hidden] { display: none; }
+
+.shop-collection-label {
+  font-family: 'EB Garamond', serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--terra);
+}
+
+.shop-collection-clear,
+.shop-active-chip {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.shop-collection-clear {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--oat);
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ink);
+  transition: background 0.3s, color 0.3s;
+}
+
+.shop-collection-clear:hover { background: var(--ink); color: var(--oat); }
+
+/* Deux barres de puces, chacune défilante au pouce ; la barre déborde de sa gouttière pour que
+   la dernière puce ne soit pas coupée net */
+.shop-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.shop-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  margin: 0 -64px;
+  padding: 2px 64px;
+  scroll-padding: 0 64px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shop-chips::-webkit-scrollbar { display: none; }
+
+.shop-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 15px;
+  border: 1px solid var(--ink-faint);
+  border-radius: 999px;
+  background: transparent;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.35s var(--ease-soft), color 0.35s var(--ease-soft), border-color 0.35s var(--ease-soft);
+}
+
+.shop-chip:hover { border-color: var(--ink); }
+
+/* Puce active : inversée */
+.shop-chip[aria-pressed="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--oat);
+}
+
+.shop-chip-count {
+  font-family: 'EB Garamond', serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.shop-chip[aria-pressed="true"] .shop-chip-count { color: var(--oat-deep); }
+
+/* Zéro pièce avec les autres filtres : la puce reste là (on voit ce qui existe) mais s'efface */
+.shop-chip.is-empty { opacity: 0.45; }
+
+.shop-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-bottom: 28px;
+}
+
+.shop-count {
+  margin: 0;
+  font-family: 'EB Garamond', serif;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+}
+
+.shop-active {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.shop-active[hidden] { display: none; }
+
+.shop-active-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--oat-mid);
+  font-family: 'Work Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  transition: background 0.3s;
+}
+
+.shop-active-chip:hover { background: var(--oat-deep); }
+
+.shop-active-x { font-size: 15px; line-height: 1; }
+
+.shop-empty {
+  margin: 48px 0 0;
+  font-size: 15px;
+  font-weight: 300;
+  color: var(--ink-muted);
+}
+
+.shop-empty[hidden] { display: none; }
+
+/* Aucune pièce visible dans le catalogue (tout est parti) : la grille le dit elle-même */
+.shop-grid-empty {
+  grid-column: 1 / -1;
+  padding: 48px 0;
+  font-family: 'Fraunces', serif;
+  font-optical-sizing: auto;
+  font-size: clamp(20px, 2.5vw, 28px);
+  font-weight: 300;
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+
+/* ═══════════════════════════════════════════════
+   PAGE PIÈCE
+   ═══════════════════════════════════════════════ */
+.piece-breadcrumb {
+  margin-bottom: 32px;
+}
+
+.piece-article {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 64px;
+  align-items: start;
+}
+
+.piece-gallery {
+  position: sticky;
+  top: 100px;
+}
+
+.piece-main {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  padding: 0;
+  border: none;
+  border-radius: 28px;
+  overflow: hidden;
+  background: linear-gradient(160deg, var(--oat-deep) 0%, var(--terra-ghost) 50%, var(--oat-mid) 100%);
+  cursor: zoom-in;
+}
+
+.piece-main img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: opacity 0.6s var(--ease-soft);
+}
+
+.piece-article[data-availability="vendue"] .piece-main img { opacity: 0.7; }
+
+.piece-main .shop-card-badge {
+  top: 18px;
+  left: 18px;
+  font-size: 12px;
+}
+
+.piece-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.piece-thumb {
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 2px solid var(--white);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--oat-deep);
+  box-shadow: 0 4px 16px rgba(26, 23, 20, 0.1);
+  cursor: pointer;
+  transition: border-color 0.3s var(--ease-soft);
+}
+
+.piece-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+.piece-thumb.is-active { border-color: var(--terra); }
+
+.piece-info {
+  padding-top: 8px;
+}
+
+.piece-name {
+  font-family: 'Fraunces', serif;
+  font-optical-sizing: auto;
+  font-size: clamp(32px, 4vw, 54px);
+  font-weight: 300;
+  line-height: 1.08;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+
+.piece-ref {
+  font-family: 'EB Garamond', serif;
+  font-size: 15px;
+  font-style: italic;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  margin: 0 0 22px;
+}
+
+.piece-price {
+  font-family: 'Fraunces', serif;
+  font-optical-sizing: auto;
+  font-size: 26px;
+  font-weight: 500;
+  color: var(--amber);
+  margin: 0 0 24px;
+}
+
+.piece-price-old {
+  font-size: 20px;
+  font-weight: 400;
+  color: var(--ink-faint);
+  margin-right: 10px;
+}
+
+.piece-state {
+  display: inline-block;
+  margin: 0 0 24px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-family: 'EB Garamond', serif;
+  font-size: 15px;
+  font-style: italic;
+}
+
+.piece-state--reserved {
+  background: var(--oat);
+  color: var(--amber-deep);
+  border: 1px solid var(--amber);
+}
+
+.piece-state--sold {
+  background: var(--oat-mid);
+  color: var(--ink-muted);
+}
+
+.piece-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 28px;
+  margin-bottom: 36px;
+}
+
+/* Le bouton principal d'une page pièce : plein, terracotta — le seul bouton plein du site */
+.piece-cta {
+  display: inline-block;
+  padding: 14px 26px;
+  border-radius: 999px;
+  background: var(--terra);
+  font-family: 'Work Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--white);
+  transition: background 0.4s var(--ease-soft), transform 0.4s var(--ease-soft);
+}
+
+.piece-cta:hover { background: var(--ink); transform: translateY(-1px); }
+
+/* Description : ses retours à la ligne et ses emojis, tels qu'elle les écrit */
+.piece-desc {
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.9;
+  color: var(--ink-soft);
+  white-space: pre-line;
+  margin: 0 0 32px;
+  max-width: 520px;
+}
+
+.piece-details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 10px 24px;
+  margin: 0 0 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--oat-deep);
+  font-size: 14px;
+}
+
+.piece-details dt {
+  font-family: 'EB Garamond', serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding-top: 2px;
+}
+
+.piece-details dd {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 400;
+}
+
+.piece-custom {
+  padding: 22px 24px;
+  border-radius: 20px;
+  background: var(--oat-mid);
+  margin-bottom: 32px;
+}
+
+.piece-custom-title {
+  font-family: 'Fraunces', serif;
+  font-optical-sizing: auto;
+  font-size: 20px;
+  font-weight: 400;
+  color: var(--ink);
+  margin: 0 0 8px;
+}
+
+.piece-custom-text {
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.8;
+  color: var(--ink-muted);
+  margin: 0 0 14px;
+}
+
+.piece-note {
+  font-family: 'EB Garamond', serif;
+  font-size: 14px;
+  font-style: italic;
+  line-height: 1.7;
+  color: var(--ink-faint);
+  margin: 0;
+}
+
+/* ═══════════════════════════════════════════════
+   ACCUEIL : pièces mises en avant, bandes de collections
+   ═══════════════════════════════════════════════ */
+.home-featured,
+.home-collections {
+  padding: 96px 64px;
+}
+
+.home-featured { background: var(--oat); }
+.home-collections { background: var(--oat-mid); }
+
+.home-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
+.home-section-title {
+  font-family: 'Fraunces', serif;
+  font-optical-sizing: auto;
+  font-size: clamp(28px, 3.5vw, 48px);
+  font-weight: 300;
+  line-height: 1.1;
+  color: var(--ink);
+  margin: 0;
+}
+
+.home-section-note {
+  font-family: 'EB Garamond', serif;
+  font-size: 14px;
+  font-style: italic;
+  color: var(--ink-faint);
+  margin: 6px 0 0;
+}
+
+/* Deux colonnes : les pièces qu'elle a choisies méritent de grandes photos */
+.home-featured .shop-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 48px 40px;
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.home-featured .shop-card-photo { border-radius: 32px; }
+.home-featured .shop-card-name { font-size: 22px; }
+
+/* Une bande par collection : titre éditorial, accroche, pièces qui défilent au pouce */
+.home-band + .home-band { margin-top: 64px; }
+
+.home-band-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 24px;
+  margin-bottom: 24px;
+}
+
+.home-band-title {
+  font-family: 'Fraunces', serif;
+  font-optical-sizing: auto;
+  font-size: clamp(26px, 3vw, 40px);
+  font-weight: 300;
+  font-style: italic;
+  line-height: 1.1;
+  color: var(--ink);
+  margin: 0;
+}
+
+.home-band-tagline {
+  flex-basis: 100%;
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.7;
+  color: var(--ink-muted);
+  margin: 0;
+  max-width: 560px;
+}
+
+.home-band-track {
+  list-style: none;
+  display: flex;
+  gap: 24px;
+  margin: 0 -64px;
+  padding: 4px 64px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-snap-type: x proximity;
+  scroll-padding: 0 64px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.home-band-track::-webkit-scrollbar { display: none; }
+
+.home-band-track .shop-card {
+  flex: 0 0 240px;
+  scroll-snap-align: start;
+}
+
+.home-band-track .shop-card-photo { border-radius: 20px; }
+.home-band-track .shop-card-name { font-size: 16px; }
+
+/* ═══════════════════════════════════════════════
+   PIED DE PAGE (boutique, pages pièce)
+   ═══════════════════════════════════════════════ */
+.site-footer {
+  background: var(--oat-mid);
+  padding: 64px 24px 40px;
+  text-align: center;
+}
+
+.site-footer-logo {
+  margin: 0 auto 20px;
+}
+
+.site-footer-contact {
+  font-family: 'EB Garamond', serif;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  margin: 0 0 18px;
+}
+
+.site-footer-contact a { transition: color 0.4s; }
+.site-footer-contact a:hover { color: var(--terra); }
+
+.site-footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 28px;
+  margin: 0 0 32px;
+}
+
+.site-footer-credit {
+  font-family: 'EB Garamond', serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+  margin: 0;
+}
+
+/* ═══════════════════════════════════════════════
+   404
+   ═══════════════════════════════════════════════ */
+.not-found {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  max-width: 720px;
+}
+
+.not-found-logo { margin-bottom: 32px; }
+
+.not-found-title {
+  font-family: 'Fraunces', serif;
+  font-optical-sizing: auto;
+  font-size: clamp(30px, 4vw, 52px);
+  font-weight: 300;
+  line-height: 1.12;
+  color: var(--ink);
+  margin: 0 0 20px;
+}
+
+.not-found-text {
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.85;
+  color: var(--ink-muted);
+  margin: 0 0 36px;
+}
+
+.not-found-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 28px;
+  margin: 0;
+}
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  .shop, .piece, .not-found { padding: 110px 40px 80px; }
+  .shop-chips, .home-band-track { margin: 0 -40px; padding-left: 40px; padding-right: 40px; scroll-padding: 0 40px; }
+  .shop-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 20px; }
+  .piece-article { grid-template-columns: 1fr; gap: 40px; }
+  .piece-gallery { position: static; }
+  .home-featured, .home-collections { padding: 80px 40px; }
+}
+
+@media (max-width: 768px) {
+  .shop, .piece, .not-found { padding: 88px 16px 64px; }
+  .shop-header { margin-bottom: 28px; }
+  .shop-chips, .home-band-track { margin: 0 -16px; padding-left: 16px; padding-right: 16px; scroll-padding: 0 16px; }
+  .shop-toolbar { margin-bottom: 20px; }
+
+  /* Deux colonnes sur mobile : c'est la maquette */
+  .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 14px; }
+  .shop-card-photo { border-radius: 18px; }
+  .shop-card-body { padding: 12px 2px 0; gap: 5px; }
+  .shop-card-name { font-size: 16px; }
+  .shop-card-action { padding: 7px 13px; font-size: 11px; }
+
+  .piece-breadcrumb { margin-bottom: 20px; }
+  .piece-main { border-radius: 20px; }
+  .piece-thumb { width: 56px; height: 56px; }
+  .piece-details { grid-template-columns: 1fr; gap: 4px; }
+  .piece-details dd { margin-bottom: 10px; }
+
+  .home-featured, .home-collections { padding: 60px 16px; }
+  .home-section-head { flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 28px; }
+  .home-featured .shop-grid { gap: 28px 14px; }
+  .home-featured .shop-card-photo { border-radius: 18px; }
+  .home-featured .shop-card-name { font-size: 17px; }
+  .home-band + .home-band { margin-top: 48px; }
+  .home-band-track { gap: 14px; }
+  .home-band-track .shop-card { flex-basis: 176px; }
+
+  .site-footer { padding: 48px 16px 32px; }
+  .site-footer-links { gap: 20px; }
+}

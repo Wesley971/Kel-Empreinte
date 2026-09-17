@@ -8,7 +8,8 @@
    Un site statique sur CDN tombe rarement ; ce qui arrive vraiment, c'est qu'il réponde
    parfaitement avec un contenu périmé (build en échec, déploiement jamais parti) ou amputé.
    Un simple code HTTP 200 dirait « tout va bien » dans ces deux cas, d'où la comparaison
-   du nombre de cartes servies avec data/products.json.
+   du nombre de cartes servies par /boutique/ avec les pièces visibles de data/products.json
+   (disponibles, réservées, vendues — la règle est celle de catalog.js).
 
    Elle ne valide PAS les données du catalogue : c'est le travail de build.js, dont l'échec
    déclenche déjà la notification Cloudflare. Deux alertes pour un même incident useraient
@@ -27,12 +28,16 @@ var fs = require('fs');
 var path = require('path');
 var execFileSync = require('child_process').execFileSync;
 
+var catalog = require('./catalog.js');
+
 var ROOT = __dirname;
 var PRODUCTS_FILE = path.join(ROOT, 'data', 'products.json');
 var DEFAULT_URL = 'https://kel-empreinte.pages.dev/';
 
-var CARDS_START = '<!-- build:lookbook-cards:start';
-var CARDS_END = '<!-- build:lookbook-cards:end -->';
+// La grille de /boutique/ est générée par build.js entre ces marqueurs (templates/boutique.html)
+var SHOP_PATH = 'boutique/';
+var CARDS_START = '<!-- build:shop-cards:start';
+var CARDS_END = '<!-- build:shop-cards:end -->';
 // Point de montage de Sveltia dans admin/index.html : preuve que c'est bien le CMS qui est servi.
 var ADMIN_MARKER = 'id="nc-root"';
 // Chemins que Cloudflare Access doit protéger (KD-91) : sans session, la bordure répond une
@@ -77,7 +82,8 @@ function expectedCount() {
     fail('impossible de lire data/products.json (' + err.message + ') — sonde inutilisable');
   }
   if (!Array.isArray(products) || !products.length) fail('data/products.json ne contient aucune pièce — sonde inutilisable');
-  return products.length;
+  // Brouillons et pièces retirées n'ont pas de carte : on compte ce que la boutique doit montrer
+  return products.filter(catalog.isVisibleInShop).length;
 }
 
 // Âge du dernier commit, ou null hors dépôt git : dans ce cas on ne tolère rien et on compare
@@ -165,35 +171,36 @@ async function expectAccessRedirect(url) {
   fail('espace de gestion injoignable — ' + url + ' : ' + why);
 }
 
-// Le lookbook servi doit contenir les marqueurs de build.js : sans eux, la page est en ligne
+// La boutique servie doit contenir les marqueurs de build.js : sans eux, la page est en ligne
 // mais ce n'est plus la page attendue (refonte non répercutée ici, ou HTML tronqué).
-function lookbookRegion(html, url) {
+function shopRegion(html, url) {
   var start = html.indexOf(CARDS_START);
   var end = html.indexOf(CARDS_END);
   if (start === -1 || end === -1 || end < start) {
-    fail('page servie sans le lookbook attendu — ' + url + ' : marqueur « ' + CARDS_START +
-      ' … --> » ou « ' + CARDS_END + ' » absent. Si le lookbook a été refondu, mettre à jour check-site.js.');
+    fail('page servie sans la grille de la boutique attendue — ' + url + ' : marqueur « ' + CARDS_START +
+      ' … --> » ou « ' + CARDS_END + ' » absent. Si la boutique a été refondue, mettre à jour check-site.js.');
   }
   return html.slice(start, end);
 }
 
 function countCards(region) {
-  return (region.match(/class="lookbook-card"/g) || []).length;
+  return (region.match(/class="shop-card"/g) || []).length;
 }
 
-// Le compteur affiché (« 01 — 24 ») vient de la même source que les cartes : le vérifier aussi
-// coûte une ligne et attrape un bloc généré à moitié.
+// Le compteur affiché (« 17 pièces », « Aucune pièce ») vient de la même source que les cartes :
+// le vérifier aussi coûte une ligne et attrape un bloc généré à moitié.
 function shownCount(html, url) {
-  var match = html.match(/class="lookbook-count">([^<]*)</);
-  if (!match) fail('page servie sans le compteur du lookbook — ' + url + ' : « class="lookbook-count" » absent');
+  var match = html.match(/class="shop-count">([^<]*)</);
+  if (!match) fail('page servie sans le compteur de la boutique — ' + url + ' : « class="shop-count" » absent');
+  if (/^Aucune/.test(match[1].trim())) return 0;
   var numbers = match[1].match(/\d+/g);
-  if (!numbers || !numbers.length) fail('compteur du lookbook illisible — ' + url + ' : « ' + match[1].trim() + ' »');
-  return parseInt(numbers[numbers.length - 1], 10);
+  if (!numbers || !numbers.length) fail('compteur de la boutique illisible — ' + url + ' : « ' + match[1].trim() + ' »');
+  return parseInt(numbers[0], 10);
 }
 
 async function readSite(url, expected) {
-  var html = await get(url, 'site injoignable');
-  var cards = countCards(lookbookRegion(html, url));
+  var html = await get(url, 'boutique injoignable');
+  var cards = countCards(shopRegion(html, url));
   var shown = shownCount(html, url);
   return { cards: cards, shown: shown, matches: cards === expected && shown === expected };
 }
@@ -205,14 +212,14 @@ async function main() {
   var urlAt = args.indexOf('--url');
   var base = urlAt === -1 ? DEFAULT_URL : args[urlAt + 1];
   if (!base) fail('option --url sans valeur');
-  // On sonde exactement l'URL demandée : c'est ce qui permet de provoquer un échec sur commande
-  // en visant un chemin qui ne rend pas le lookbook. La barre finale ne sert qu'à en dériver le CMS
-  // et les chemins protégés.
+  // La boutique, l'ancien CMS et les chemins protégés sont dérivés de la racine demandée. Pour
+  // provoquer un échec sur commande, viser un hôte qui n'existe pas (voir README › Surveillance).
   var root = base.slice(-1) === '/' ? base : base + '/';
+  var shopUrl = root + SHOP_PATH;
   var adminUrl = root + 'admin/';
 
   var expected = expectedCount();
-  var site = await readSite(base, expected);
+  var site = await readSite(shopUrl, expected);
 
   if (!site.matches) {
     var age = lastCommitAgeMs();
@@ -220,21 +227,19 @@ async function main() {
     if (deploying) {
       log('écart détecté ' + Math.round(age / 1000) + ' s après le dernier commit — déploiement probablement en cours, nouvel essai dans ' + (RETRY_DEPLOY_MS / 1000) + ' s');
       await wait(RETRY_DEPLOY_MS);
-      site = await readSite(base, expected);
+      site = await readSite(shopUrl, expected);
     }
     if (!site.matches) {
-      var ecart = expected + ' pièces dans data/products.json, ' + site.cards + ' cartes servies, compteur à ' + site.shown;
+      var ecart = expected + ' pièces visibles dans data/products.json, ' + site.cards + ' cartes servies, compteur à ' + site.shown;
       // Un écart alors que le dernier commit est vieux ne s'explique plus par un déploiement :
       // le build a échoué, ou n'est jamais parti, et le site est périmé depuis.
-      if (!deploying) fail('le site ne reflète pas le dépôt — ' + base + ' : ' + ecart + '. Déploiement en échec ou jamais parti : voir les déploiements Cloudflare.');
+      if (!deploying) fail('le site ne reflète pas le dépôt — ' + shopUrl + ' : ' + ecart + '. Déploiement en échec ou jamais parti : voir les déploiements Cloudflare.');
       log('écart toujours présent mais le dernier commit a moins de ' + (FRESH_COMMIT_MS / 60000) + ' min (' + ecart + ') — déploiement en cours, pas d\'alerte');
     }
   }
 
-  // Le CMS fait partie du site à surveiller : sans /admin, Prescilia ne peut plus rien publier.
-  // Cloudflare Pages sert la page d'accueil, en 200, pour tout chemin qu'il ne connaît pas : un code
-  // HTTP ne prouve donc rien ici. On exige le point de montage du CMS, sinon un /admin disparu du
-  // déploiement passerait pour joignable.
+  // L'ancien CMS est encore déployé (retrait en KD-95) : on vérifie qu'il est servi, par son point
+  // de montage — un code HTTP seul ne prouverait rien si la page d'accueil était servie à sa place.
   var adminHtml = await get(adminUrl, 'CMS injoignable');
   if (adminHtml.indexOf(ADMIN_MARKER) === -1) {
     fail('page servie à la place du CMS — ' + adminUrl + ' : « ' + ADMIN_MARKER + ' » absent (Cloudflare sert la page d\'accueil pour un chemin inconnu)');
@@ -248,9 +253,9 @@ async function main() {
 
   // Le mot de la fin dit ce qui a vraiment été mesuré : un écart toléré reste un écart.
   if (site.matches) {
-    log('site conforme au dépôt — ' + base + ' : ' + site.cards + ' cartes servies pour ' + expected + ' pièces, /admin/ joignable, ' + protectedNote);
+    log('site conforme au dépôt — ' + shopUrl + ' : ' + site.cards + ' cartes servies pour ' + expected + ' pièces visibles, /admin/ joignable, ' + protectedNote);
   } else {
-    log('écart toléré — ' + base + ' : ' + site.cards + ' cartes servies pour ' + expected + ' pièces, /admin/ joignable, ' + protectedNote + '. À revérifier au prochain passage.');
+    log('écart toléré — ' + shopUrl + ' : ' + site.cards + ' cartes servies pour ' + expected + ' pièces visibles, /admin/ joignable, ' + protectedNote + '. À revérifier au prochain passage.');
   }
 }
 

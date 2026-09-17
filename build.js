@@ -304,36 +304,298 @@ function replaceRegion(html, name, content, eol, file) {
 function eolOf(text) {
   return text.indexOf('\r\n') !== -1 ? '\r\n' : '\n';
 }
+/* ── Rendu des pages ── */
+
+var SITE_URL = 'https://kel-empreinte.pages.dev';
+var TEMPLATES_DIR = path.join(ROOT, 'templates');
+var SHOP_DIR = path.join(ROOT, 'boutique');
+var SITEMAP_FILE = path.join(ROOT, 'sitemap.xml');
+
+var esc = catalog.escapeHtml;
+
+function readTemplate(name) {
+  var file = path.join(TEMPLATES_DIR, name);
+  var text;
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch (err) {
+    fail('impossible de lire le gabarit templates/' + name + ' (' + err.message + ')');
+  }
+  return { name: 'templates/' + name, text: text, eol: eolOf(text) };
+}
+
+// Remplit une région d'un gabarit et renvoie le gabarit mis à jour (les appels s'enchaînent).
+// Contenu vide → un commentaire : replaceRegion refuse un bloc vide, mais « aucune pièce » est un
+// état légitime du catalogue, pas une erreur de génération.
+function fill(page, name, content, indent) {
+  var text = replaceRegion(page.text, name, content.trim() ? content : (indent || '') + '<!-- aucune pièce -->', page.eol, page.name);
+  return { name: page.name, text: text, eol: page.eol };
+}
+
+function indentLines(text, indent) {
+  return text.split('\n').map(function(line) { return line ? indent + line : line; }).join('\n');
+}
+
+// JSON destiné à un <script type="application/json"> : « < » échappé, pour qu'un nom ne puisse
+// jamais fermer la balise
+function jsonForHtml(value) {
+  return JSON.stringify(value).replace(/</g, '\\u003c');
+}
+
+function pluralize(count, singular, plural) {
+  return count + '\u00a0' + (count > 1 ? plural : singular);
+}
+
+/* Boutique */
+
+function renderChip(value, label, count) {
+  return '<button type="button" class="shop-chip" data-value="' + esc(value) + '" aria-pressed="false">' +
+    '<span class="shop-chip-label">' + esc(label) + '</span><span class="shop-chip-count">' + count + '</span></button>';
+}
+
+// Une pièce « mixte » compte pour les deux publics ; un type sans pièce n'a pas de puce
+function renderAudienceChips(shown, indent) {
+  return catalog.AUDIENCES.filter(function(a) { return a.id !== 'mixte'; }).map(function(audience) {
+    var count = shown.filter(function(p) { return p.audience === audience.id || p.audience === 'mixte'; }).length;
+    return indent + renderChip(audience.id, audience.label, count);
+  }).join('\n');
+}
+
+function renderCategoryChips(shown, indent) {
+  return catalog.CATEGORIES.map(function(category) {
+    var count = shown.filter(function(p) { return p.category === category.id; }).length;
+    return count ? indent + renderChip(category.id, category.plural, count) : '';
+  }).filter(Boolean).join('\n');
+}
+
+var SHOP_EMPTY = '<li class="shop-grid-empty">Toutes les pièces ont trouvé preneur — de nouvelles créations arrivent. ' +
+  'En attendant, <a href="https://wa.me/33768728002" class="cta-link" target="_blank" rel="noopener noreferrer">écrivez-moi sur WhatsApp</a>.</li>';
+
+function renderShopPage(page, shown, collections) {
+  var names = collections.map(function(c) { return { id: c.id, name: c.name }; });
+  page = fill(page, 'shop-chips-audience', renderAudienceChips(shown, '      '), '      ');
+  page = fill(page, 'shop-chips-category', renderCategoryChips(shown, '      '), '      ');
+  page = fill(page, 'shop-count', '    <p class="shop-count">' + pluralize(shown.length, 'pièce', 'pièces') + '</p>');
+  page = fill(page, 'shop-cards', shown.length ? catalog.renderShopCards(shown, '    ') : '    ' + SHOP_EMPTY);
+  page = fill(page, 'shop-collections-json', jsonForHtml(names));
+  return page.text;
+}
+
+/* Page pièce */
+
+var GENERIC_DESCRIPTION = 'Pièce unique en résine et fleurs séchées, faite main en France.';
+
+// Ce que WhatsApp montre sous le lien : le prix, le type, puis la première ligne de sa description
+function pieceSummary(product) {
+  var parts = [];
+  if (!catalog.isSold(product) && catalog.hasPrice(product)) parts.push(catalog.formatPrice(product));
+  parts.push(catalog.categoryLabel(product.category, true));
+  var firstLine = String(product.desc || '').split('\n').map(function(l) { return l.trim(); }).filter(Boolean)[0];
+  parts.push(firstLine || GENERIC_DESCRIPTION);
+  var text = parts.join(' · ');
+  return text.length > 200 ? text.slice(0, 197).replace(/\s+\S*$/, '') + '…' : text;
+}
+
+function renderPieceHead(product) {
+  var title = product.name + ' · Kel\'Empreinte';
+  var summary = pieceSummary(product);
+  var url = SITE_URL + catalog.pieceUrl(product);
+  var image = SITE_URL + catalog.imageUrl(product.images[0]);
+  var lines = [
+    '<title>' + esc(title) + '</title>',
+    '<meta name="description" content="' + esc(summary) + '">',
+    '<meta property="og:type" content="product">',
+    '<meta property="og:site_name" content="Kel\'Empreinte">',
+    '<meta property="og:title" content="' + esc(title) + '">',
+    '<meta property="og:description" content="' + esc(summary) + '">',
+    '<meta property="og:url" content="' + esc(url) + '">',
+    '<meta property="og:image" content="' + esc(image) + '">',
+    '<meta property="og:image:alt" content="' + esc(product.images[0].alt) + '">',
+    '<meta name="twitter:card" content="summary_large_image">',
+    '<link rel="canonical" href="' + esc(url) + '">'
+  ];
+  if (!catalog.isSold(product) && catalog.hasPrice(product)) {
+    var amount = catalog.hasPromo(product) ? product.promoPrice : product.price;
+    lines.push('<meta property="product:price:amount" content="' + amount + '">');
+    lines.push('<meta property="product:price:currency" content="EUR">');
+  }
+  return lines.join('\n');
+}
+
+function optionLabels(product) {
+  var options = product.customization && Array.isArray(product.customization.options) ? product.customization.options : [];
+  return options.map(function(id) {
+    var option = catalog.CUSTOMIZATION_OPTIONS.filter(function(o) { return o.id === id; })[0];
+    return option ? option.label.toLowerCase() : id;
+  });
+}
+
+function joinFr(items) {
+  if (items.length <= 1) return items.join('');
+  return items.slice(0, -1).join(', ') + ' et ' + items[items.length - 1];
+}
+
+function renderPieceArticle(product, collections) {
+  var name = esc(product.name);
+  var images = product.images;
+  var lines = ['<article class="piece-article" data-availability="' + esc(product.availability) + '">'];
+
+  // Galerie : la première photo en grand, les autres en vignettes
+  lines.push('  <div class="piece-gallery">');
+  lines.push('    <button type="button" class="piece-main" aria-label="Agrandir la photo">');
+  lines.push('      <img src="' + esc(catalog.imageUrl(images[0])) + '" alt="' + esc(images[0].alt) + '">');
+  if (catalog.isReserved(product)) lines.push('      <span class="shop-card-badge shop-card-badge--reserved">Réservée</span>');
+  if (catalog.isSold(product)) lines.push('      <span class="shop-card-badge shop-card-badge--sold">Vendue</span>');
+  lines.push('    </button>');
+  if (images.length > 1) {
+    lines.push('    <div class="piece-thumbs" role="group" aria-label="Toutes les photos">');
+    images.forEach(function(image, i) {
+      lines.push('      <button type="button" class="piece-thumb' + (i === 0 ? ' is-active' : '') + '" data-src="' + esc(catalog.imageUrl(image)) +
+        '" data-alt="' + esc(image.alt) + '" aria-label="Photo ' + (i + 1) + '"><img src="' + esc(catalog.imageUrl(image)) + '" alt="" loading="lazy"></button>');
+    });
+    lines.push('    </div>');
+  }
+  lines.push('  </div>');
+
+  lines.push('  <div class="piece-info">');
+  var eyebrow = [catalog.categoryLabel(product.category, true), catalog.audienceLabel(product.audience)];
+  (product.collections || []).forEach(function(id) {
+    var collection = collections.filter(function(c) { return c.id === id; })[0];
+    if (collection) eyebrow.push(collection.name);
+  });
+  lines.push('    <p class="piece-eyebrow">' + eyebrow.map(esc).join(' · ') + '</p>');
+  lines.push('    <h1 class="piece-name">' + name + '</h1>');
+  if (product.reference) lines.push('    <p class="piece-ref">Réf.\u00a0' + esc(product.reference) + '</p>');
+
+  if (catalog.isSold(product)) {
+    lines.push('    <p class="piece-state piece-state--sold">Vendue</p>');
+    lines.push('    <div class="piece-actions">');
+    lines.push('      <a class="piece-cta" href="' + esc(catalog.buildSimilarPieceLink(product)) + '" target="_blank" rel="noopener noreferrer">Une pièce semblable&nbsp;?</a>');
+    lines.push('      <a class="cta-link cta-link--dark" href="/boutique/">Voir les pièces disponibles</a>');
+    lines.push('    </div>');
+  } else {
+    var price = '    <p class="piece-price">';
+    if (catalog.hasPromo(product)) price += '<s class="piece-price-old">' + esc(catalog.formatOriginalPrice(product)) + '</s>';
+    price += esc(catalog.formatPrice(product)) + '</p>';
+    lines.push(price);
+    if (catalog.isReserved(product)) {
+      lines.push('    <p class="piece-state piece-state--reserved">' + esc(catalog.formatReservedUntil(product)) + '</p>');
+    } else {
+      // « Ajouter au panier » arrive avec KD-64 ; d'ici là la commande passe par WhatsApp
+      lines.push('    <div class="piece-actions">');
+      lines.push('      <a class="piece-cta" href="' + esc(catalog.buildWhatsAppLink(product)) + '" target="_blank" rel="noopener noreferrer">Commander sur WhatsApp</a>');
+      lines.push('      <a class="cta-link cta-link--dark" href="/boutique/">Voir d\'autres pièces</a>');
+      lines.push('    </div>');
+    }
+  }
+
+  // Sa description, telle qu'elle l'écrit : retours à la ligne et emojis conservés (pre-line)
+  if (product.desc && product.desc.trim()) lines.push('    <p class="piece-desc">' + esc(product.desc.trim()) + '</p>');
+
+  var materials = Array.isArray(product.materials) ? product.materials : [];
+  if (materials.length || product.dimensions) {
+    lines.push('    <dl class="piece-details">');
+    if (materials.length) lines.push('      <dt>Matières</dt><dd>' + esc(materials.join(', ')) + '</dd>');
+    if (product.dimensions) lines.push('      <dt>Dimensions</dt><dd>' + esc(product.dimensions) + '</dd>');
+    lines.push('    </dl>');
+  }
+
+  var options = optionLabels(product);
+  if (options.length && !catalog.isSold(product)) {
+    lines.push('    <div class="piece-custom">');
+    lines.push('      <h2 class="piece-custom-title">Personnalisation</h2>');
+    lines.push('      <p class="piece-custom-text">Cette pièce peut être adaptée&nbsp;: ' + esc(joinFr(options)) + '. Sur devis, réponse sous 72&nbsp;h.</p>');
+    lines.push('      <a class="cta-link" href="' + esc(catalog.buildCustomizationLink(product)) + '" target="_blank" rel="noopener noreferrer">Demander un devis</a>');
+    lines.push('    </div>');
+  }
+
+  lines.push('    <p class="piece-note">Pièce unique, faite main dans mon atelier à Vieux-Condé. Les photos sont celles de la pièce elle-même&nbsp;; de légères variations de couleur sont possibles à l\'écran.</p>');
+  lines.push('  </div>');
+  lines.push('</article>');
+  return lines.join('\n');
+}
+
+function renderPiecePage(page, product, collections) {
+  var html = replaceRegion(page.text, 'piece-head', renderPieceHead(product), page.eol, page.name);
+  return replaceRegion(html, 'piece', indentLines(renderPieceArticle(product, collections), '  '), page.eol, page.name);
+}
+
+/* Plan du site */
+
+function renderSitemap(shown) {
+  var lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    '  <url><loc>' + SITE_URL + '/</loc></url>', '  <url><loc>' + SITE_URL + '/boutique/</loc></url>'];
+  shown.forEach(function(product) {
+    lines.push('  <url><loc>' + esc(SITE_URL + catalog.pieceUrl(product)) + '</loc><lastmod>' + esc(product.createdAt) + '</lastmod></url>');
+  });
+  lines.push('</urlset>', '');
+  return lines.join('\n');
+}
+
+/* ── Écriture ── */
+
+function writeFile(file, content) {
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, content, 'utf8');
+  } catch (err) {
+    fail('impossible d\'écrire ' + path.relative(ROOT, file) + ' (' + err.message + ')');
+  }
+}
+
+// Le dossier boutique/ est entièrement généré (et ignoré par git) : on le vide avant d'écrire,
+// sinon la page d'une pièce passée en brouillon ou retirée survivrait au build précédent.
+function resetShopDir() {
+  try {
+    fs.rmSync(SHOP_DIR, { recursive: true, force: true });
+    fs.mkdirSync(SHOP_DIR, { recursive: true });
+  } catch (err) {
+    fail('impossible de vider boutique/ (' + err.message + ')');
+  }
+}
 
 /* ── Programme ── */
 
 var data = readCatalog();
 var products = data.products;
+var collections = data.collections;
+var shown = catalog.sortForShop(products);
 
-var html;
+var indexHtml;
 try {
-  html = fs.readFileSync(INDEX_FILE, 'utf8');
+  indexHtml = fs.readFileSync(INDEX_FILE, 'utf8');
 } catch (err) {
   fail('impossible de lire index.html (' + err.message + ')');
 }
-var eol = eolOf(html);
+var indexEol = eolOf(indexHtml);
+
+// Tout est rendu en mémoire avant la première écriture : un échec ne laisse rien à moitié généré.
 
 // Transitoire (lot A de KD-97) : la section « La Collection » de l'accueil est encore en place,
 // elle reçoit les cartes de la boutique jusqu'à la refonte de l'accueil (lot C).
-var shown = catalog.sortForShop(products);
-var output = html;
-output = replaceRegion(output, 'lookbook-count', '      <span class="lookbook-count">' + shown.length + ' pièces</span>', eol, 'index.html');
-output = replaceRegion(output, 'lookbook-cards', catalog.renderShopCards(shown, '      '), eol, 'index.html');
+var indexOutput = indexHtml;
+indexOutput = replaceRegion(indexOutput, 'lookbook-count', '      <span class="lookbook-count">' + pluralize(shown.length, 'pièce', 'pièces') + '</span>', indexEol, 'index.html');
+indexOutput = replaceRegion(indexOutput, 'lookbook-cards', shown.length ? catalog.renderShopCards(shown, '      ') : '      ' + SHOP_EMPTY, indexEol, 'index.html');
 
-if (output !== html) {
-  fs.writeFileSync(INDEX_FILE, output, 'utf8');
-}
+var shopPage = renderShopPage(readTemplate('boutique.html'), shown, collections);
+var pieceTemplate = readTemplate('piece.html');
+var piecePages = shown.map(function(product) {
+  return { file: path.join(SHOP_DIR, product.id, 'index.html'), html: renderPiecePage(pieceTemplate, product, collections) };
+});
+var sitemap = renderSitemap(shown);
+
+if (indexOutput !== indexHtml) fs.writeFileSync(INDEX_FILE, indexOutput, 'utf8');
+resetShopDir();
+writeFile(path.join(SHOP_DIR, 'index.html'), shopPage);
+piecePages.forEach(function(page) { writeFile(page.file, page.html); });
+writeFile(SITEMAP_FILE, sitemap);
 
 var counts = {};
 products.forEach(function(product) { counts[product.availability] = (counts[product.availability] || 0) + 1; });
 console.log('build.js : catalogue — ' + products.length + ' pièces (' +
-  catalog.AVAILABILITIES.filter(function(s) { return counts[s]; }).map(function(s) { return counts[s] + ' ' + s; }).join(', ') + '), ' +
-  shown.length + ' cartes générées' + (output === html ? ', index.html déjà à jour' : ', index.html mis à jour'));
+  catalog.AVAILABILITIES.filter(function(s) { return counts[s]; }).map(function(s) { return counts[s] + ' ' + s; }).join(', ') + ')');
+console.log('build.js : boutique — boutique/index.html + ' + piecePages.length + ' pages pièce, sitemap.xml (' + (shown.length + 2) + ' URL)' +
+  (indexOutput === indexHtml ? ', index.html déjà à jour' : ', index.html mis à jour'));
 
 /* ── Branche du déploiement, pour les Functions ── */
 

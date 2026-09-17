@@ -1,0 +1,5 @@
+# Généré par build.js à chaque build (Cloudflare Pages et en local) : la boutique et ses pages
+# pièce, le plan du site. Jamais committé — chaque enregistrement de Prescilia toucherait sinon
+# une centaine de fichiers.
+boutique/
+sitemap.xml
