@@ -94,7 +94,7 @@ function contentsPath(config, filePath) {
 
 // Lit un fichier texte du dépôt. Renvoie son contenu décodé et son sha : le sha est exigé
 // par GitHub pour toute mise à jour (protection contre l'écrasement d'une modification
-// concurrente — la même pièce éditée depuis Sveltia et depuis le nouvel espace).
+// concurrente — deux onglets de l'espace de gestion, ou une édition directe sur GitHub).
 export async function readRepoFile(env, filePath) {
   const config = repoConfig(env);
   const ref = config.branch || READ_FALLBACK_BRANCH;

@@ -1,6 +1,6 @@
 /* Garde-fou du catalogue — repère une chute anormale du nombre de pièces.
 
-   Lancé à chaque enregistrement dans /admin par .github/workflows/catalog-guard.yml, et à la main :
+   Lancé à chaque enregistrement depuis l'espace de gestion par .github/workflows/catalog-guard.yml, et à la main :
      node check-catalog-drop.js <avant.json> [après.json]   (après = data/products.json par défaut)
 
    Le cas visé est celui que rien d'autre ne voit : le JSON reste valide, le build réussit,
@@ -72,12 +72,12 @@ var lost = before - after;
 
 if (lost > before * MAX_DROP_RATIO) {
   alert('le catalogue perd ' + lost + ' pièces d\'un coup (' + before + ' → ' + after +
-    ') — plus d\'un quart. Vérifier la dernière modification dans /admin et revenir en arrière si besoin.');
+    ') — plus d\'un quart. Vérifier le dernier commit sur data/products.json et revenir en arrière si besoin.');
 }
 
 if (after < FLOOR && before >= FLOOR) {
   alert('le catalogue tombe à ' + after + ' pièce(s) (' + before + ' → ' + after +
-    ') — sous le seuil de ' + FLOOR + '. Vérifier la dernière modification dans /admin et revenir en arrière si besoin.');
+    ') — sous le seuil de ' + FLOOR + '. Vérifier le dernier commit sur data/products.json et revenir en arrière si besoin.');
 }
 
 log('catalogue cohérent : ' + before + ' → ' + after + ' pièces' + (lost > 0 ? ' (' + lost + ' retirée(s))' : ''));

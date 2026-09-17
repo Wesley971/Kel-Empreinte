@@ -38,11 +38,10 @@ var DEFAULT_URL = 'https://kel-empreinte.pages.dev/';
 var SHOP_PATH = 'boutique/';
 var CARDS_START = '<!-- build:shop-cards:start';
 var CARDS_END = '<!-- build:shop-cards:end -->';
-// Point de montage de Sveltia dans admin/index.html : preuve que c'est bien le CMS qui est servi.
-var ADMIN_MARKER = 'id="nc-root"';
-// Chemins que Cloudflare Access doit protéger (KD-91) : sans session, la bordure répond une
-// redirection vers la page de connexion de l'équipe, avant même que Pages ne serve quoi que ce soit.
-var PROTECTED_PATHS = ['gestion/', 'api/admin/'];
+// Chemins que Cloudflare Access doit protéger (KD-91, /admin depuis KD-95) : sans session, la
+// bordure répond une redirection vers la page de connexion de l'équipe, avant même que Pages ne
+// serve quoi que ce soit.
+var PROTECTED_PATHS = ['admin/', 'api/admin/'];
 var ACCESS_LOGIN_HOST = '.cloudflareaccess.com';
 // Les gabarits sources sont déployés avec le site mais ne doivent pas se servir : une Function
 // (functions/templates/[[path]].js) répond 404. Si elle disparaît, rien d'autre ne le remarquerait.
@@ -231,11 +230,10 @@ async function main() {
   var urlAt = args.indexOf('--url');
   var base = urlAt === -1 ? DEFAULT_URL : args[urlAt + 1];
   if (!base) fail('option --url sans valeur');
-  // La boutique, l'ancien CMS et les chemins protégés sont dérivés de la racine demandée. Pour
-  // provoquer un échec sur commande, viser un hôte qui n'existe pas (voir README › Surveillance).
+  // La boutique et les chemins protégés sont dérivés de la racine demandée. Pour provoquer un
+  // échec sur commande, viser un hôte qui n'existe pas (voir README › Surveillance).
   var root = base.slice(-1) === '/' ? base : base + '/';
   var shopUrl = root + SHOP_PATH;
-  var adminUrl = root + 'admin/';
 
   var expected = expectedCount();
   var site = await readSite(shopUrl, expected);
@@ -257,13 +255,6 @@ async function main() {
     }
   }
 
-  // L'ancien CMS est encore déployé (retrait en KD-95) : on vérifie qu'il est servi, par son point
-  // de montage — un code HTTP seul ne prouverait rien si la page d'accueil était servie à sa place.
-  var adminHtml = await get(adminUrl, 'CMS injoignable');
-  if (adminHtml.indexOf(ADMIN_MARKER) === -1) {
-    fail('page servie à la place du CMS — ' + adminUrl + ' : « ' + ADMIN_MARKER + ' » absent (Cloudflare sert la page d\'accueil pour un chemin inconnu)');
-  }
-
   // L'espace de gestion et son API (KD-91) doivent rester derrière Cloudflare Access.
   for (var i = 0; i < PROTECTED_PATHS.length; i++) {
     await expectAccessRedirect(root + PROTECTED_PATHS[i]);
@@ -273,9 +264,9 @@ async function main() {
 
   // Le mot de la fin dit ce qui a vraiment été mesuré : un écart toléré reste un écart.
   if (site.matches) {
-    log('site conforme au dépôt — ' + shopUrl + ' : ' + site.cards + ' cartes servies pour ' + expected + ' pièces visibles, /admin/ joignable, ' + protectedNote);
+    log('site conforme au dépôt — ' + shopUrl + ' : ' + site.cards + ' cartes servies pour ' + expected + ' pièces visibles, ' + protectedNote);
   } else {
-    log('écart toléré — ' + shopUrl + ' : ' + site.cards + ' cartes servies pour ' + expected + ' pièces visibles, /admin/ joignable, ' + protectedNote + '. À revérifier au prochain passage.');
+    log('écart toléré — ' + shopUrl + ' : ' + site.cards + ' cartes servies pour ' + expected + ' pièces visibles, ' + protectedNote + '. À revérifier au prochain passage.');
   }
 }
 

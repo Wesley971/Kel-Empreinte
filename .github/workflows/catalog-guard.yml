@@ -1,4 +1,4 @@
-# Garde-fou : à chaque enregistrement dans /admin, le catalogue a-t-il perdu anormalement
+# Garde-fou : à chaque enregistrement depuis l'espace de gestion, le catalogue a-t-il perdu anormalement
 # de pièces ? (voir check-catalog-drop.js). C'est le seul contrôle qui voit ce cas : les
 # données restent valides, le build réussit, le site se déploie — mais il manque la moitié
 # du catalogue. Détection seulement : le déploiement Cloudflare tourne en parallèle.
