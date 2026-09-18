@@ -16,6 +16,8 @@
    déploiement, le navigateur entre deux déploiements et la Function de checkout (KD-64) au
    paiement : le même verdict à la même seconde, quel que soit le fuseau de la machine.
 
+   Le numéro WhatsApp n'est pas écrit ici : build.js le lit dans data/site.json et l'injecte par
+   configure() avant de rendre les liens (KD-116).
    Les espaces insécables s'y écrivent \u00a0 et jamais &nbsp; : les valeurs produites ici
    alimentent aussi des textContent (écran de gestion), où une entité HTML s'afficherait telle
    quelle. */
@@ -102,8 +104,21 @@
 
   /* ── Liens WhatsApp ── */
 
+  // Le lien WhatsApp (« https://wa.me/<numéro> ») vient de data/site.json, la seule source du numéro
+  // (KD-116) : build.js le passe ici avant tout rendu. Un rendu sans configuration échoue tout de
+  // suite plutôt que d'écrire « wa.me/undefined » dans vingt pages.
+  var whatsAppBase = null;
+
+  function configure(options) {
+    if (!options || typeof options.whatsapp !== 'string' || !/^https:\/\/wa\.me\/\d+$/.test(options.whatsapp)) {
+      throw new Error('catalog.configure : « whatsapp » doit être un lien https://wa.me/<numéro> (data/site.json, contact.whatsapp)');
+    }
+    whatsAppBase = options.whatsapp;
+  }
+
   function whatsAppUrl(message) {
-    return 'https://wa.me/33768728002?text=' + encodeURIComponent(message);
+    if (!whatsAppBase) throw new Error('catalog.js : lien WhatsApp non configuré — appeler configure({ whatsapp }) avec la valeur de data/site.json');
+    return whatsAppBase + '?text=' + encodeURIComponent(message);
   }
 
   // Nom suivi de la référence quand elle existe : c'est ainsi que Prescilia reconnaît la pièce
@@ -525,6 +540,7 @@
   }
 
   return {
+    configure: configure,
     AVAILABILITIES: AVAILABILITIES,
     STATE_LABELS: STATE_LABELS,
     CATEGORIES: CATEGORIES,

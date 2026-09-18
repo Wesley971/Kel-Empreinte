@@ -581,15 +581,29 @@ function renderCategoryChips(shown, indent) {
   }).filter(Boolean).join('\n');
 }
 
-var SHOP_EMPTY = '<li class="shop-grid-empty">Toutes les pièces ont trouvé preneur — de nouvelles créations arrivent. ' +
-  'En attendant, <a href="https://wa.me/33768728002" class="cta-link" target="_blank" rel="noopener noreferrer">écrivez-moi sur WhatsApp</a>.</li>';
+// Lien « écrivez-moi sur WhatsApp » : le numéro vient de data/site.json, jamais d'ici
+function whatsAppCta(site, label) {
+  return '<a href="' + esc(site.contact.whatsapp) + '" class="cta-link" target="_blank" rel="noopener noreferrer">' + label + '</a>';
+}
 
-function renderShopPage(page, shown, collections) {
+// Catalogue sans pièce visible : la boutique (li de la grille) et l'accueil (p) le disent
+function emptyCatalogMessage(site, tag) {
+  return '<' + tag + ' class="shop-grid-empty">Toutes les pièces ont trouvé preneur — de nouvelles créations arrivent. ' +
+    'En attendant, ' + whatsAppCta(site, 'écrivez-moi sur WhatsApp') + '.</' + tag + '>';
+}
+
+function renderShopIntro(site) {
+  return '    <p class="shop-intro">Chaque pièce est unique\u00a0: une fois partie, elle ne revient pas. Une question, une envie de personnalisation\u00a0? ' +
+    whatsAppCta(site, 'Écrivez-moi sur WhatsApp') + '.</p>';
+}
+
+function renderShopPage(page, shown, collections, site) {
   var names = collections.map(function(c) { return { id: c.id, name: c.name }; });
+  page = put(page, 'shop-intro', renderShopIntro(site));
   page = fill(page, 'shop-chips-audience', renderAudienceChips(shown, '      '), '      ');
   page = fill(page, 'shop-chips-category', renderCategoryChips(shown, '      '), '      ');
   page = fill(page, 'shop-count', '    <p class="shop-count">' + pluralize(shown.length, 'pièce', 'pièces') + '</p>');
-  page = fill(page, 'shop-cards', shown.length ? catalog.renderShopCards(shown, '    ') : '    ' + SHOP_EMPTY);
+  page = fill(page, 'shop-cards', shown.length ? catalog.renderShopCards(shown, '    ') : '    ' + emptyCatalogMessage(site, 'li'));
   page = fill(page, 'shop-collections-json', jsonForHtml(names));
   return page.text;
 }
@@ -739,11 +753,9 @@ var HOME_FEATURED_FALLBACK = 4;   // dernières ajoutées quand rien n'est mis e
 var HOME_LATEST_COUNT = 8;        // taille de « Nouveautés »
 var HOME_BAND_MAX = 8;            // pièces par bande de collection
 
-var HOME_EMPTY = '<p class="shop-grid-empty">Toutes les pièces ont trouvé preneur — de nouvelles créations arrivent. ' +
-  'En attendant, <a href="https://wa.me/33768728002" class="cta-link" target="_blank" rel="noopener noreferrer">écrivez-moi sur WhatsApp</a>.</p>';
 
 // Les pièces qu'elle a cochées, en vente ; sinon les dernières ajoutées, et le titre le dit
-function renderHomeFeatured(products, indent) {
+function renderHomeFeatured(products, site, indent) {
   var chosen = products.some(function(p) { return p.featured === true && catalog.isVisibleOnHome(p); });
   var pieces = catalog.featuredPieces(products, HOME_FEATURED_FALLBACK);
   var lines = [
@@ -760,7 +772,7 @@ function renderHomeFeatured(products, indent) {
   if (pieces.length) {
     lines.push(indent + '<ul class="shop-grid">', catalog.renderShopCards(pieces, indent + '  '), indent + '</ul>');
   } else {
-    lines.push(indent + HOME_EMPTY);
+    lines.push(indent + emptyCatalogMessage(site, 'p'));
   }
   return lines.join('\n');
 }
@@ -833,6 +845,7 @@ function resetShopDir() {
 /* ── Programme ── */
 
 var site = readSite();
+catalog.configure({ whatsapp: site.contact.whatsapp }); // les liens WhatsApp des cartes et pages pièce
 var shipping = readShipping();
 var data = readCatalog();
 // Validé tel qu'écrit, rendu tel que réglé : une réservation échue à l'instant du build est une
@@ -858,13 +871,13 @@ var footer = renderFooter(footerPartial, site);
 var indexPage = withCommon(indexHtml, navHome, null);
 indexPage = put(indexPage, 'signature-contact', renderSignatureContact(site, '      '));
 indexPage = put(indexPage, 'signature-links', shopLinks(site, '        '));
-indexPage = fill(indexPage, 'home-featured', renderHomeFeatured(products, '    '), '    ');
+indexPage = fill(indexPage, 'home-featured', renderHomeFeatured(products, site, '    '), '    ');
 indexPage = fill(indexPage, 'home-collections', renderHomeCollections(products, collections, '    '), '    ');
 var indexOutput = indexPage.text;
 
 var notFoundOutput = withCommon(notFoundHtml, navPlain, footer).text;
 
-var shopPage = renderShopPage(withCommon(readTemplate('boutique.html'), navShop, footer), shown, collections);
+var shopPage = renderShopPage(withCommon(readTemplate('boutique.html'), navShop, footer), shown, collections, site);
 var pieceTemplate = withCommon(readTemplate('piece.html'), navShop, footer);
 var piecePages = shown.map(function(product) {
   return { file: path.join(SHOP_DIR, product.id, 'index.html'), html: renderPiecePage(pieceTemplate, product, collections) };
