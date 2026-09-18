@@ -16,6 +16,9 @@
    déploiement, le navigateur entre deux déploiements et la Function de checkout (KD-64) au
    paiement : le même verdict à la même seconde, quel que soit le fuseau de la machine.
 
+   La validation du modèle (validateProduct) vit ici aussi depuis KD-93 : le formulaire de gestion,
+   l'API et build.js jugent une pièce avec la même règle et les mêmes messages.
+
    Le numéro WhatsApp n'est pas écrit ici : build.js le lit dans data/site.json et l'injecte par
    configure() avant de rendre les liens (KD-116).
    Les espaces insécables s'y écrivent \u00a0 et jamais &nbsp; : les valeurs produites ici
@@ -539,6 +542,215 @@
     return products.map(function(product) { return renderShopCard(product, indent); }).join('\n');
   }
 
+  /* ── Validation du modèle v2 ──
+
+     Ce que build.js exige d'une pièce, écrit une seule fois (KD-93) : le formulaire de gestion
+     (avant d'envoyer), l'API (refus 422) et le build (échec du déploiement) jugent une pièce de la
+     même façon, avec les mêmes messages — l'API ne doit jamais écrire un fichier que le build
+     refuserait. Seule l'existence des fichiers photo reste au build : elle demande le disque.
+
+     validateProduct(product, ctx) renvoie la liste des problèmes, dans l'ordre où ils sont
+     rencontrés ; vide = pièce valide. Le premier message est celui que build.js affiche. ctx :
+       where          début des messages (« pièce n° 3 », « la pièce ») ; l'id s'y ajoute
+       collectionIds  les id de data/collections.json
+       seen           { ids: {}, references: {} } partagé entre les pièces d'un même catalogue :
+                      les doublons d'id et de référence se voient là ; la référence y est
+                      normalisée (BO023 = bo-023) et chaque entrée garde l'id de la pièce qui la porte
+       now            l'instant de référence pour « la date de vente est dans le futur » */
+
+  // Les identifiants deviennent des segments d'URL (/boutique/<id>/) et des noms de fichiers
+  // (images/<id>-1.webp) : uniquement minuscules, chiffres et tirets simples — jamais de remontée.
+  var ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+  var KNOWN_FIELDS = ['id', 'reference', 'name', 'category', 'audience', 'collections', 'availability', 'reservedUntil',
+    'price', 'promoPrice', 'customization', 'desc', 'materials', 'dimensions', 'images', 'featured', 'featuredOrder',
+    'createdAt', 'sale'];
+  // Champs du modèle v1 : leur présence dit que le fichier n'a pas été migré (KD-97)
+  var REMOVED_FIELDS = ['heading', 'plainName', 'badge', 'specs', 'priceType', 'priceConfirmed', 'customizable'];
+
+  function isBlank(value) { return value === undefined || value === null; }
+  function isAmount(value) { return typeof value === 'number' && isFinite(value) && value >= 0; }
+  function isIsoDate(value) { return parseIsoDate(value) !== null; }
+  function isPlainObject(value) { return !!value && typeof value === 'object' && !Array.isArray(value); }
+  function ids(list) { return list.map(function(item) { return item.id; }); }
+
+  function validateProduct(product, ctx) {
+    ctx = ctx || {};
+    var problems = [];
+    var seen = ctx.seen || { ids: {}, references: {} };
+    var collectionIds = ctx.collectionIds || [];
+    var where = (ctx.where || 'la pièce') + (isPlainObject(product) && isText(product.id) ? ' (' + product.id + ')' : '');
+    function report(message) { problems.push(message); }
+
+    // Un texte facultatif : absent, null ou chaîne — tout autre type est une erreur de saisie
+    function checkOptionalText(value, field) {
+      if (!isBlank(value) && typeof value !== 'string') report(where + ' : « ' + field + ' » doit être un texte');
+    }
+    function checkOneOf(value, allowed, field) {
+      if (allowed.indexOf(value) === -1) {
+        report(where + ' : « ' + field + ' » doit valoir ' + allowed.join(', ') + ' (reçu : ' + JSON.stringify(value) + ')');
+      }
+    }
+    function checkKnownKeys(object, allowed, scope) {
+      Object.keys(object).forEach(function(key) {
+        if (allowed.indexOf(key) === -1) report(scope + ' : champ inconnu « ' + key + ' »');
+      });
+    }
+
+    if (!isPlainObject(product)) {
+      report(where + ' : entrée invalide');
+      return problems;
+    }
+
+    REMOVED_FIELDS.forEach(function(field) {
+      if (product[field] !== undefined) report(where + ' : ancien format (champ « ' + field + ' ») — le catalogue doit être migré vers le modèle v2 (KD-97)');
+    });
+    if (product.availability === 'bientot') report(where + ' : l\'état « bientot » n\'existe plus — une pièce sans photo est un « brouillon »');
+    checkKnownKeys(product, KNOWN_FIELDS, where);
+
+    if (!isText(product.id) || !ID_PATTERN.test(product.id)) {
+      report(where + ' : « id » doit être un identifiant en minuscules-tirets (ex. herbier-jaune-velours)');
+    } else if (seen.ids[product.id]) {
+      report(where + ' : identifiant en double');
+    } else {
+      seen.ids[product.id] = true;
+    }
+
+    checkOneOf(product.availability, AVAILABILITIES, 'availability');
+    var state = product.availability;
+    var draft = state === 'brouillon';
+    var onSale = state === 'disponible' || state === 'reservee';
+
+    // Un brouillon est une saisie en cours : on ne vérifie que les types, jamais la présence
+    if (draft) {
+      checkOptionalText(product.name, 'name');
+      if (!isBlank(product.category)) checkOneOf(product.category, ids(CATEGORIES), 'category');
+      if (!isBlank(product.audience)) checkOneOf(product.audience, ids(AUDIENCES), 'audience');
+    } else {
+      if (!isText(product.name)) report(where + ' : champ « name » manquant');
+      checkOneOf(product.category, ids(CATEGORIES), 'category');
+      checkOneOf(product.audience, ids(AUDIENCES), 'audience');
+    }
+
+    if (!isIsoDate(product.createdAt)) report(where + ' : « createdAt » doit être une date AAAA-MM-JJ');
+
+    // Référence : texte libre, unique une fois normalisée (BO023 = bo-023 = BO 023)
+    checkOptionalText(product.reference, 'reference');
+    if (typeof product.reference === 'string') {
+      var normalized = normalizeReference(product.reference);
+      if (!normalized) {
+        report(where + ' : « reference » ne contient ni lettre ni chiffre');
+      } else if (seen.references[normalized]) {
+        report(where + ' : référence « ' + product.reference + '» déjà portée par ' + seen.references[normalized]);
+      } else {
+        seen.references[normalized] = product.id;
+      }
+    }
+
+    if (!isBlank(product.collections)) {
+      if (!Array.isArray(product.collections)) {
+        report(where + ' : « collections » doit être une liste');
+      } else {
+        var seenCollections = {};
+        product.collections.forEach(function(id) {
+          if (collectionIds.indexOf(id) === -1) report(where + ' : collection inconnue « ' + id + ' » (voir data/collections.json)');
+          if (seenCollections[id]) report(where + ' : collection « ' + id + ' » en double');
+          seenCollections[id] = true;
+        });
+      }
+    }
+
+    // Prix : obligatoire pour une pièce en vente ou réservée ; les autres états le gardent s'il existe
+    if (onSale) {
+      if (!isAmount(product.price)) report(where + ' : pièce ' + state + ' sans prix');
+    } else if (!isBlank(product.price) && !isAmount(product.price)) {
+      report(where + ' : « price » doit être un nombre positif');
+    }
+    if (!isBlank(product.promoPrice)) {
+      if (!isAmount(product.promoPrice)) report(where + ' : « promoPrice » doit être un nombre positif');
+      else if (!isAmount(product.price) || product.promoPrice >= product.price) report(where + ' : le prix promotionnel doit être inférieur au prix');
+    }
+
+    // Date de fin de réservation : exactement quand la pièce est réservée
+    if (state === 'reservee') {
+      if (!isIsoDate(product.reservedUntil)) report(where + ' : pièce réservée sans « reservedUntil » (date AAAA-MM-JJ)');
+    } else if (!isBlank(product.reservedUntil)) {
+      report(where + ' : « reservedUntil » n\'a de sens que pour une pièce réservée');
+    }
+
+    // Vente : montant, canal et date sont renseignés quand la pièce passe vendue (KD-98) ; une
+    // pièce vendue avant l'espace de gestion peut ne pas les avoir
+    if (!isBlank(product.sale)) {
+      if (state !== 'vendue') report(where + ' : « sale » n\'a de sens que pour une pièce vendue');
+      if (!isPlainObject(product.sale)) {
+        report(where + ' : « sale » doit être un objet { amount, channel, date }');
+      } else {
+        checkKnownKeys(product.sale, ['amount', 'channel', 'date'], where + ', vente');
+        if (!isBlank(product.sale.amount) && !isAmount(product.sale.amount)) report(where + ' : « sale.amount » doit être un nombre positif');
+        if (!isBlank(product.sale.channel)) checkOneOf(product.sale.channel, ids(CHANNELS), 'sale.channel');
+        if (!isBlank(product.sale.date) && !isIsoDate(product.sale.date)) report(where + ' : « sale.date » doit être une date AAAA-MM-JJ');
+        if (isFutureDay(product.sale.date, ctx.now)) report(where + ' : « sale.date » est dans le futur (' + product.sale.date + ', nous sommes le ' + todayInParis(ctx.now) + ' à Paris)');
+      }
+    }
+
+    if (!isBlank(product.customization)) {
+      if (!isPlainObject(product.customization)) {
+        report(where + ' : « customization » doit être un objet { options }');
+      } else {
+        checkKnownKeys(product.customization, ['options'], where + ', personnalisation');
+        if (!isBlank(product.customization.options)) {
+          if (!Array.isArray(product.customization.options)) {
+            report(where + ' : « customization.options » doit être une liste');
+          } else {
+            var seenOptions = {};
+            product.customization.options.forEach(function(option) {
+              checkOneOf(option, ids(CUSTOMIZATION_OPTIONS), 'customization.options');
+              if (seenOptions[option]) report(where + ' : option de personnalisation « ' + option + ' » en double');
+              seenOptions[option] = true;
+            });
+          }
+        }
+      }
+    }
+
+    checkOptionalText(product.desc, 'desc');
+    checkOptionalText(product.dimensions, 'dimensions');
+    if (!isBlank(product.materials)) {
+      if (!Array.isArray(product.materials)) {
+        report(where + ' : « materials » doit être une liste');
+      } else {
+        product.materials.forEach(function(material) {
+          if (!isText(material)) report(where + ' : une matière est vide');
+        });
+      }
+    }
+
+    if (!isBlank(product.featured) && typeof product.featured !== 'boolean') report(where + ' : « featured » doit valoir true ou false');
+    if (!isBlank(product.featuredOrder) && typeof product.featuredOrder !== 'number') report(where + ' : « featuredOrder » doit être un nombre');
+
+    // Les photos : leur forme ici, l'existence des fichiers dans build.js
+    var images = isBlank(product.images) ? [] : product.images;
+    if (!Array.isArray(images)) {
+      report(where + ' : « images » doit être une liste');
+    } else {
+      images.forEach(function(image, i) {
+        var imgWhere = where + ', photo n° ' + (i + 1);
+        if (!isPlainObject(image)) {
+          report(imgWhere + ' : entrée invalide');
+          return;
+        }
+        checkKnownKeys(image, ['src', 'alt'], imgWhere);
+        if (!isText(image.src)) report(imgWhere + ' : chemin d\'image manquant');
+        if (!isText(image.alt)) report(imgWhere + ' : description (alt) manquante');
+      });
+    }
+    // Sa règle : une photo suffit à rendre une pièce disponible — et rien ne se montre sans photo.
+    // Une pièce vendue reste affichée en boutique, il lui en faut une aussi.
+    if ((onSale || state === 'vendue') && !hasPhoto(product)) report(where + ' : pièce ' + state + ' sans photo');
+
+    return problems;
+  }
+
   return {
     configure: configure,
     AVAILABILITIES: AVAILABILITIES,
@@ -571,6 +783,9 @@
     featuredPieces: featuredPieces,
     collectionPieces: collectionPieces,
     normalizeReference: normalizeReference,
+    ID_PATTERN: ID_PATTERN,
+    KNOWN_FIELDS: KNOWN_FIELDS,
+    validateProduct: validateProduct,
     parseIsoDate: parseIsoDate,
     formatDay: formatDay,
     formatReservedUntil: formatReservedUntil,

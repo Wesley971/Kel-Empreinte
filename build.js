@@ -97,35 +97,16 @@ function checkImageFile(src, where) {
 // échue est rendue disponible, une vente ne peut pas être datée de demain.
 var BUILD_TIME = new Date();
 
-// Les identifiants deviennent des segments d'URL (/boutique/<id>/) et des noms de dossiers
-// générés : uniquement minuscules, chiffres et tirets simples — jamais de remontée possible.
-var ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-var KNOWN_FIELDS = ['id', 'reference', 'name', 'category', 'audience', 'collections', 'availability', 'reservedUntil',
-  'price', 'promoPrice', 'customization', 'desc', 'materials', 'dimensions', 'images', 'featured', 'featuredOrder',
-  'createdAt', 'sale'];
-// Champs du modèle v1 : leur présence dit que le fichier n'a pas été migré (KD-97)
-var REMOVED_FIELDS = ['heading', 'plainName', 'badge', 'specs', 'priceType', 'priceConfirmed', 'customizable'];
-
-var CATEGORY_IDS = catalog.CATEGORIES.map(function(c) { return c.id; });
-var AUDIENCE_IDS = catalog.AUDIENCES.map(function(a) { return a.id; });
-var CHANNEL_IDS = catalog.CHANNELS.map(function(c) { return c.id; });
-var OPTION_IDS = catalog.CUSTOMIZATION_OPTIONS.map(function(o) { return o.id; });
+// Les identifiants (pièces, collections, modes d'envoi) suivent la même règle que catalog.js :
+// minuscules, chiffres et tirets simples — ils deviennent des segments d'URL et des noms de dossiers.
+var ID_PATTERN = catalog.ID_PATTERN;
 
 function isBlank(value) { return value === undefined || value === null; }
 function isText(value) { return typeof value === 'string' && value.trim() !== ''; }
-function isAmount(value) { return typeof value === 'number' && isFinite(value) && value >= 0; }
-function isIsoDate(value) { return catalog.parseIsoDate(value) !== null; }
 
 // Un texte facultatif : absent, null ou chaîne — tout autre type est une erreur de saisie
 function checkOptionalText(value, field, where) {
   if (!isBlank(value) && typeof value !== 'string') fail(where + ' : « ' + field + ' » doit être un texte');
-}
-
-function checkOneOf(value, allowed, field, where) {
-  if (allowed.indexOf(value) === -1) {
-    fail(where + ' : « ' + field + ' » doit valoir ' + allowed.join(', ') + ' (reçu : ' + JSON.stringify(value) + ')');
-  }
 }
 
 function checkKnownKeys(object, allowed, where) {
@@ -134,129 +115,19 @@ function checkKnownKeys(object, allowed, where) {
   });
 }
 
-function checkImages(images, where) {
-  if (!Array.isArray(images)) fail(where + ' : « images » doit être une liste');
-  images.forEach(function(image, i) {
-    var imgWhere = where + ', photo n° ' + (i + 1);
-    if (!image || typeof image !== 'object') fail(imgWhere + ' : entrée invalide');
-    checkKnownKeys(image, ['src', 'alt'], imgWhere);
-    if (!isText(image.src)) fail(imgWhere + ' : chemin d\'image manquant');
-    if (!isText(image.alt)) fail(imgWhere + ' : description (alt) manquante');
-    checkImageFile(image.src, imgWhere);
-  });
-}
-
+// La règle du modèle vit dans catalog.js (validateProduct, KD-93) : le formulaire de gestion, l'API
+// et le build jugent une pièce de la même façon, avec les mêmes messages. Ici s'ajoute ce que seul
+// le disque peut dire — le fichier de chaque photo existe, avec sa casse exacte.
 function validateProduct(product, index, seen, collectionIds) {
-  var where = 'pièce n° ' + (index + 1) + (product && isText(product.id) ? ' (' + product.id + ')' : '');
-  if (!product || typeof product !== 'object' || Array.isArray(product)) fail(where + ' : entrée invalide');
-
-  REMOVED_FIELDS.forEach(function(field) {
-    if (product[field] !== undefined) fail(where + ' : ancien format (champ « ' + field + ' ») — le catalogue doit être migré vers le modèle v2 (KD-97)');
+  var problems = catalog.validateProduct(product, {
+    where: 'pièce n° ' + (index + 1), seen: seen, collectionIds: collectionIds, now: BUILD_TIME
   });
-  if (product.availability === 'bientot') fail(where + ' : l\'état « bientot » n\'existe plus — une pièce sans photo est un « brouillon »');
-  checkKnownKeys(product, KNOWN_FIELDS, where);
+  if (problems.length) fail(problems[0]);
 
-  if (!isText(product.id) || !ID_PATTERN.test(product.id)) fail(where + ' : « id » doit être un identifiant en minuscules-tirets (ex. herbier-jaune-velours)');
-  if (seen.ids[product.id]) fail(where + ' : identifiant en double');
-  seen.ids[product.id] = true;
-
-  checkOneOf(product.availability, catalog.AVAILABILITIES, 'availability', where);
-  var state = product.availability;
-  var draft = state === 'brouillon';
-  var onSale = state === 'disponible' || state === 'reservee';
-
-  // Un brouillon est une saisie en cours : on ne vérifie que les types, jamais la présence
-  if (draft) {
-    checkOptionalText(product.name, 'name', where);
-    if (!isBlank(product.category)) checkOneOf(product.category, CATEGORY_IDS, 'category', where);
-    if (!isBlank(product.audience)) checkOneOf(product.audience, AUDIENCE_IDS, 'audience', where);
-  } else {
-    if (!isText(product.name)) fail(where + ' : champ « name » manquant');
-    checkOneOf(product.category, CATEGORY_IDS, 'category', where);
-    checkOneOf(product.audience, AUDIENCE_IDS, 'audience', where);
-  }
-
-  if (!isIsoDate(product.createdAt)) fail(where + ' : « createdAt » doit être une date AAAA-MM-JJ');
-
-  // Référence : texte libre, unique une fois normalisée (BO023 = bo-023 = BO 023)
-  checkOptionalText(product.reference, 'reference', where);
-  if (typeof product.reference === 'string') {
-    var normalized = catalog.normalizeReference(product.reference);
-    if (!normalized) fail(where + ' : « reference » ne contient ni lettre ni chiffre');
-    if (seen.references[normalized]) fail(where + ' : référence « ' + product.reference + '» déjà portée par ' + seen.references[normalized]);
-    seen.references[normalized] = product.id;
-  }
-
-  if (!isBlank(product.collections)) {
-    if (!Array.isArray(product.collections)) fail(where + ' : « collections » doit être une liste');
-    var seenCollections = {};
-    product.collections.forEach(function(id) {
-      if (collectionIds.indexOf(id) === -1) fail(where + ' : collection inconnue « ' + id + ' » (voir data/collections.json)');
-      if (seenCollections[id]) fail(where + ' : collection « ' + id + ' » en double');
-      seenCollections[id] = true;
-    });
-  }
-
-  // Prix : obligatoire pour une pièce en vente ou réservée ; les autres états le gardent s'il existe
-  if (onSale) {
-    if (!isAmount(product.price)) fail(where + ' : pièce ' + state + ' sans prix');
-  } else if (!isBlank(product.price) && !isAmount(product.price)) {
-    fail(where + ' : « price » doit être un nombre positif');
-  }
-  if (!isBlank(product.promoPrice)) {
-    if (!isAmount(product.promoPrice)) fail(where + ' : « promoPrice » doit être un nombre positif');
-    if (!isAmount(product.price) || product.promoPrice >= product.price) fail(where + ' : le prix promotionnel doit être inférieur au prix');
-  }
-
-  // Date de fin de réservation : exactement quand la pièce est réservée
-  if (state === 'reservee') {
-    if (!isIsoDate(product.reservedUntil)) fail(where + ' : pièce réservée sans « reservedUntil » (date AAAA-MM-JJ)');
-  } else if (!isBlank(product.reservedUntil)) {
-    fail(where + ' : « reservedUntil » n\'a de sens que pour une pièce réservée');
-  }
-
-  // Vente : montant, canal et date sont renseignés quand la pièce passe vendue (KD-98) ; une
-  // pièce vendue avant l'espace de gestion peut ne pas les avoir
-  if (!isBlank(product.sale)) {
-    if (state !== 'vendue') fail(where + ' : « sale » n\'a de sens que pour une pièce vendue');
-    if (typeof product.sale !== 'object' || Array.isArray(product.sale)) fail(where + ' : « sale » doit être un objet { amount, channel, date }');
-    checkKnownKeys(product.sale, ['amount', 'channel', 'date'], where + ', vente');
-    if (!isBlank(product.sale.amount) && !isAmount(product.sale.amount)) fail(where + ' : « sale.amount » doit être un nombre positif');
-    if (!isBlank(product.sale.channel)) checkOneOf(product.sale.channel, CHANNEL_IDS, 'sale.channel', where);
-    if (!isBlank(product.sale.date) && !isIsoDate(product.sale.date)) fail(where + ' : « sale.date » doit être une date AAAA-MM-JJ');
-    if (catalog.isFutureDay(product.sale.date, BUILD_TIME)) fail(where + ' : « sale.date » est dans le futur (' + product.sale.date + ', nous sommes le ' + catalog.todayInParis(BUILD_TIME) + ' à Paris)');
-  }
-
-  if (!isBlank(product.customization)) {
-    if (typeof product.customization !== 'object' || Array.isArray(product.customization)) fail(where + ' : « customization » doit être un objet { options }');
-    checkKnownKeys(product.customization, ['options'], where + ', personnalisation');
-    if (!isBlank(product.customization.options)) {
-      if (!Array.isArray(product.customization.options)) fail(where + ' : « customization.options » doit être une liste');
-      var seenOptions = {};
-      product.customization.options.forEach(function(option) {
-        checkOneOf(option, OPTION_IDS, 'customization.options', where);
-        if (seenOptions[option]) fail(where + ' : option de personnalisation « ' + option + ' » en double');
-        seenOptions[option] = true;
-      });
-    }
-  }
-
-  checkOptionalText(product.desc, 'desc', where);
-  checkOptionalText(product.dimensions, 'dimensions', where);
-  if (!isBlank(product.materials)) {
-    if (!Array.isArray(product.materials)) fail(where + ' : « materials » doit être une liste');
-    product.materials.forEach(function(material) {
-      if (!isText(material)) fail(where + ' : une matière est vide');
-    });
-  }
-
-  if (!isBlank(product.featured) && typeof product.featured !== 'boolean') fail(where + ' : « featured » doit valoir true ou false');
-  if (!isBlank(product.featuredOrder) && typeof product.featuredOrder !== 'number') fail(where + ' : « featuredOrder » doit être un nombre');
-
-  checkImages(isBlank(product.images) ? [] : product.images, where);
-  // Sa règle : une photo suffit à rendre une pièce disponible — et rien ne se montre sans photo.
-  // Une pièce vendue reste affichée en boutique, il lui en faut une aussi.
-  if ((onSale || state === 'vendue') && !catalog.hasPhoto(product)) fail(where + ' : pièce ' + state + ' sans photo');
+  var where = 'pièce n° ' + (index + 1) + ' (' + product.id + ')';
+  (isBlank(product.images) ? [] : product.images).forEach(function(image, i) {
+    checkImageFile(image.src, where + ', photo n° ' + (i + 1));
+  });
 }
 
 function validateCollections(collections) {
