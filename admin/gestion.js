@@ -78,7 +78,13 @@
     searchClear: document.getElementById('search-clear'),
     empty: document.getElementById('empty'),
     emptyText: document.getElementById('empty-text'),
-    emptyClear: document.getElementById('empty-clear')
+    emptyClear: document.getElementById('empty-clear'),
+    add: document.getElementById('add'),
+    addSheet: document.getElementById('add-sheet'),
+    addCopy: document.getElementById('add-copy'),
+    addNew: document.getElementById('add-new'),
+    pick: document.getElementById('pick'),
+    pickCancel: document.getElementById('pick-cancel')
   };
 
   var products = [];   // la liste telle que l'API l'a donnée, mise à jour par ses réponses
@@ -87,6 +93,7 @@
   var rowErrors = {};  // id → raison du dernier refus : un rendu complet (une frappe) ne l'efface pas
   var query = '';      // la recherche en cours, telle que tapée
   var pending = 0;     // écritures en vol : le statut global reste allumé tant qu'il y en a
+  var picking = false; // « Copier une pièce existante » : le prochain nom touché est la pièce à copier
 
   function show(el) { el.hidden = false; }
   function hide(el) { el.hidden = true; }
@@ -102,7 +109,7 @@
   var SessionExpired = admin.SessionExpired;
   var api = admin.api;
   var showToast = admin.createToast(els.toast);
-  var dialogs = admin.createDialogs([els.sheet, els.confirm, els.sale], showToast);
+  var dialogs = admin.createDialogs([els.sheet, els.confirm, els.sale, els.addSheet], showToast);
   var openConfirm = admin.createConfirm({ dialog: els.confirm, title: els.confirmTitle, text: els.confirmText, ok: els.confirmOk }, dialogs);
   var openDialog = dialogs.open;
   var closeDialog = dialogs.close;
@@ -134,7 +141,9 @@
         hide(els.loading);
         products = data.products;
         els.searchForm.hidden = !products.length;
+        els.add.hidden = false;
         render();
+        afterForm();
       })
       .catch(function (err) {
         hide(els.loading);
@@ -194,7 +203,11 @@
   function renderRow(product) {
     var row = els.rowTemplate.content.firstElementChild.cloneNode(true);
     row.dataset.id = product.id;
-    row.querySelector('.kel-row-name').textContent = product.name;
+    var name = row.querySelector('.kel-row-name');
+    name.textContent = product.name;
+    name.href = pieceUrl(product.id, picking ? 'from' : 'id');
+    // En mode « copier », toute la ligne choisit la pièce
+    row.addEventListener('click', function () { if (picking) window.location.assign(pieceUrl(product.id, 'from')); });
 
     if (catalog.hasPhoto(product)) {
       var img = document.createElement('img');
@@ -354,7 +367,11 @@
     var detail = detailText(product, state);
     els.sheetState.textContent = !detail ? stateText(state) : (state === 'disponible' ? stateText(state) + ' · ' + detail : detail);
     els.sheetActions.textContent = '';
-    actionsFor(product).forEach(function (action) {
+    var open = [
+      { label: 'Modifier la fiche', href: pieceUrl(product.id, 'id'), detail: 'Photos, nom, référence, description, prix…' },
+      { label: 'Dupliquer', href: pieceUrl(product.id, 'from'), detail: 'Une nouvelle pièce à partir de celle-ci, sans ses photos ni son nom.' }
+    ];
+    open.concat(actionsFor(product)).forEach(function (action) {
       var button = document.createElement('button');
       button.type = 'button';
       button.className = 'kel-action' + (action.target === 'retiree' ? ' kel-action--quiet' : '');
@@ -371,6 +388,7 @@
       }
       button.addEventListener('click', function () {
         closeDialog(els.sheet);
+        if (action.href) return window.location.assign(action.href);
         if (action.sale) return openSale(product, product.sale || null);
         if (action.confirm) return openConfirm(action.confirm, function () { submit(product, action.target, null); });
         submit(product, action.target, null);
@@ -596,6 +614,48 @@
   els.searchForm.addEventListener('submit', function (event) { event.preventDefault(); els.search.blur(); });
   els.searchClear.addEventListener('click', function () { clearSearch(true); });
   els.emptyClear.addEventListener('click', function () { clearSearch(false); });
+
+  /* ── Ajouter une pièce, copier une pièce (KD-93) ── */
+
+  function pieceUrl(id, param) {
+    return '/admin/piece?' + param + '=' + encodeURIComponent(id);
+  }
+
+  // En mode « copier », le nom de chaque ligne mène à la copie (rendu avec picking = true), le
+  // bandeau dit quoi faire, les boutons d'état s'effacent
+  function setPicking(on) {
+    picking = on;
+    els.pick.hidden = !on;
+    document.body.classList.toggle('kel-picking', on);
+    render();
+    if (on) window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+
+  els.add.addEventListener('click', function () { openDialog(els.addSheet, els.add); });
+  els.addNew.addEventListener('click', function () { closeDialog(els.addSheet); window.location.assign('/admin/piece'); });
+  els.addCopy.addEventListener('click', function () {
+    closeDialog(els.addSheet);
+    if (!products.length) return showToast('Aucune pièce à copier pour l\'instant.');
+    setPicking(true);
+  });
+  els.pickCancel.addEventListener('click', function () { setPicking(false); });
+
+  // Retour de la fiche : ?saved=<id>&deploys=1|0 ou ?deleted=<nom> — le toast, la pièce mise en
+  // évidence, et l'adresse nettoyée pour qu'un rechargement ne répète pas le message
+  function afterForm() {
+    var params = new URLSearchParams(window.location.search);
+    var saved = params.get('saved');
+    var deleted = params.get('deleted');
+    if (!saved && !deleted) return;
+    window.history.replaceState(null, '', window.location.pathname);
+    if (deleted) return showToast('Brouillon « ' + deleted + ' » supprimé.');
+    showToast(params.get('deploys') === '0' ? 'Brouillon enregistré. Il n\'est pas sur le site.' : 'Enregistré, mise en ligne dans 1 à 2 minutes.');
+    var row = rows[saved];
+    if (!row) return;
+    row.classList.add('kel-row--saved');
+    row.scrollIntoView({ block: 'center' });
+    window.setTimeout(function () { row.classList.remove('kel-row--saved'); }, 4000);
+  }
 
   /* ── Démarrage ── */
 
