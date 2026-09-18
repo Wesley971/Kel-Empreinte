@@ -6,7 +6,9 @@
 
    La navigation et le pied de page ne sont écrits qu'une fois, dans templates/partials/ : build.js
    les injecte dans les quatre pages (KD-100). Les liens de contact et de boutiques viennent de
-   data/site.json, les entrées de navigation de la liste NAV_ITEMS ci-dessous.
+   data/site.json (seule source du numéro WhatsApp, passé à catalog.js par configure()), les tarifs
+   d'envoi de data/shipping.json (la réponse « paiement et livraison » de la FAQ est générée d'ici),
+   les entrées de navigation de la liste NAV_ITEMS ci-dessous.
 
    Exécuté par Cloudflare Pages à chaque déploiement (build command : `node build.js`,
    output et root directory laissés vides = racine du dépôt, Node figé par .node-version).

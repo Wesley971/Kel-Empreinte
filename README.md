@@ -29,7 +29,8 @@ encore là : les pages renvoient vers WhatsApp.
 | `.github/workflows/` | planification des deux contrôles ci-dessus (GitHub Actions) |
 | `data/products.json` | **source de vérité du catalogue**, modifiée par l'espace de gestion (`/admin/`) via les Functions, un commit par modification (voir *Modèle*) |
 | `data/collections.json` | les collections nommées (`id`, `name`, `order`, `tagline`, `cover`) : une bande par collection sur l'accueil, dans cet ordre. « Nouveautés » n'y est pas : elle est automatique (les 8 dernières pièces en vente) |
-| `data/site.json` | les coordonnées (`contact` : `email`, `phone` au format international, `phoneLabel`, `whatsapp`) et les boutiques (`shops` : `name`, `url`). **Seule source** de ces liens : ils apparaissent dans le pied de page des quatre pages et dans la section « Contact » de l'accueil. Ne contient pas la navigation — c'est le fichier que l'écran de réglages de KD-79 écrira |
+| `data/site.json` | les coordonnées (`contact` : `email`, `phone` au format international, `phoneLabel`, `whatsapp`) et les boutiques (`shops` : `name`, `url`). **Seule source** de ces liens : pied de page des quatre pages, section « Contact » de l'accueil, intro de la boutique, réponse « personnaliser » de la FAQ, messages de catalogue vide et liens WhatsApp des cartes et pages pièce (`catalog.js` reçoit le lien par `configure()`, il n'écrit jamais le numéro). Ne contient pas la navigation — c'est le fichier que l'écran de réglages de KD-79 écrira |
+| `data/shipping.json` | les modes d'envoi (`methods` : `id`, `label`, `price`, un seul `standard: true`, `freeFrom` = montant à partir duquel le mode standard est offert). **Seule source des tarifs** : la réponse « paiement et livraison » de la FAQ est générée d'ici, et le panier (KD-64) y lira les frais. La Poste change ses prix chaque année : on modifie ce fichier, jamais une page |
 | `admin/` | l'espace de gestion, derrière Cloudflare Access (voir *Espace de gestion*). `index.html` + `gestion.css` + `gestion.js` = l'écran « Mes bijoux » (les fichiers nomment l'espace, pas le chemin) ; `manifest.webmanifest` + `icon-*.png` = nom « Mes bijoux » et icône opaque (fond crème) du raccourci « écran d'accueil » de Prescilia (KD-66), `start_url` et `scope` `/admin/` ; `guide.html` = **ancien** guide « Gérer mes bijoux », écrit pour Sveltia, remplacé par KD-104 |
 | `images/` | photos des pièces (KD-93 y écrira depuis l'espace de gestion). `images/logo/` : le logo en 200 px, en deux versions — `logo-kel-empreinte.png` (« Empreinte » en encre, appareil clair) et `logo-kel-empreinte-dark-mode.png` (« Empreinte » en crème, appareil sombre) — et l'image de partage `og-image-kel-empreinte.png`. Les sources haute résolution ne sont pas dans le dépôt |
 | `favicon.svg` | favicon qui embarque les deux logos et affiche celui du réglage de l'appareil (Chrome, Firefox) ; Safari ignore les favicons SVG et garde le PNG déclaré avant lui |
@@ -103,7 +104,7 @@ réglage : elle relève de KD-95.
 node build.js
 ```
 
-Lit `data/products.json`, `data/collections.json` et `data/site.json`, vérifie les données, puis
+Lit `data/products.json`, `data/collections.json`, `data/site.json` et `data/shipping.json`, vérifie les données, puis
 génère : les régions de l'accueil et de `404.html` (réécrits en place entre les marqueurs),
 `boutique/index.html`, une page
 `boutique/<id>/index.html` par pièce visible (disponible, réservée, vendue) et `sitemap.xml`. Toute la
@@ -113,7 +114,7 @@ message qui nomme la pièce et le champ) si : JSON invalide ou vide, champ incon
 format, identifiant en double ou qui n'est pas un slug, état / type / public inconnu, référence en
 double une fois normalisée, pièce en vente ou réservée sans prix ou sans photo, pièce vendue sans
 photo, réservée sans date, vente datée dans le futur (heure de Paris), promotion supérieure au prix,
-collection inconnue, photo sans description ou fichier introuvable, marqueur absent ou en double. Un
+collection inconnue, photo sans description ou fichier introuvable, marqueur absent ou en double, mode d'envoi sans prix numérique ou sans mode standard unique. Un
 catalogue sans pièce visible **n'est pas une erreur** : les pages le disent. Le catalogue est validé
 tel qu'écrit puis rendu tel que **réglé** à l'instant du build : une réservation échue est rendue
 disponible (voir *Réservation*), et le journal le dit.
@@ -132,6 +133,12 @@ disponible (voir *Réservation*), et le journal le dit.
 pages et dans `<!-- build:footer:… -->` des trois qui ont un pied de page. L'accueil n'en a pas :
 ses coordonnées vivent dans la section « Contact », avec son propre balisage, alimentée par les
 régions `signature-contact` et `signature-links` — mêmes données, autre habillage.
+
+Même mécanique pour trois paragraphes qui portent des données : l'intro de la boutique (région
+`shop-intro`, lien WhatsApp) et, dans la FAQ de l'accueil, la réponse « personnaliser » (`faq-customization`,
+lien WhatsApp) et la réponse « paiement et livraison » (`faq-shipping`, montants de `data/shipping.json`).
+Les trois autres réponses de la FAQ restent écrites dans `index.html`. Le numéro WhatsApp n'existe
+qu'à un endroit, `data/site.json` : les vingt pages générées le suivent au build suivant.
 
 Trois variantes de navigation, choisies par page : `home` (toutes les entrées, ancres locales,
 « Accueil » active), `shop` (boutique et pages pièce ; les entrées `homeOnly` disparaissent, les
