@@ -804,6 +804,7 @@ picture { display: contents; }
 .signature {
   background: var(--oat-mid);
   display: flex;
+  flex-direction: column; /* le contenu, puis la ligne de crédit : la section suit son contenu */
   align-items: center;
   justify-content: center;
   position: relative;
@@ -895,10 +896,10 @@ picture { display: contents; }
 }
 
 .signature-footer {
-  position: absolute;
-  bottom: 24px;
-  left: 0;
-  right: 0;
+  position: relative; /* dans le flux, au-dessus du logo fantôme */
+  z-index: 2;
+  margin: 8px 0 24px;
+  padding: 0 24px;
   text-align: center;
   font-family: 'EB Garamond', serif;
   font-size: 12px;
