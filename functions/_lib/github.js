@@ -6,6 +6,10 @@
    Cloudflare (Settings › Variables and Secrets, type Secret), jamais une variable de
    Build, jamais envoyée au navigateur.
 
+   Un enregistrement du formulaire de pièce (KD-93) écrit plusieurs fichiers — photos et JSON —
+   en UN commit, via l'API Git Data (commitFiles, en bas de ce fichier) ; l'API Contents reste
+   pour l'écriture d'un seul fichier texte (writeRepoFile).
+
    Le repo a une valeur par défaut : une seule variable à configurer pour que la brique
    fonctionne. GITHUB_REPO permet de viser un autre dépôt (fork, test) sans toucher au code.
 
@@ -95,10 +99,11 @@ function contentsPath(config, filePath) {
 // Lit un fichier texte du dépôt. Renvoie son contenu décodé et son sha : le sha est exigé
 // par GitHub pour toute mise à jour (protection contre l'écrasement d'une modification
 // concurrente — deux onglets de l'espace de gestion, ou une édition directe sur GitHub).
-export async function readRepoFile(env, filePath) {
+// `ref` : un commit précis (celui que commitFiles prendra pour parent) ; sinon la branche.
+export async function readRepoFile(env, filePath, { ref } = {}) {
   const config = repoConfig(env);
-  const ref = config.branch || READ_FALLBACK_BRANCH;
-  const file = await githubFetch(config, contentsPath(config, filePath) + '?ref=' + encodeURIComponent(ref));
+  const at = ref || config.branch || READ_FALLBACK_BRANCH;
+  const file = await githubFetch(config, contentsPath(config, filePath) + '?ref=' + encodeURIComponent(at));
   if (file.type !== 'file' || typeof file.content !== 'string') {
     throw new GitHubError(0, filePath + ' : la réponse GitHub ne contient pas un fichier (' + (file.type || 'type inconnu') + ')');
   }
@@ -106,8 +111,8 @@ export async function readRepoFile(env, filePath) {
 }
 
 // Écrit (crée ou met à jour) un fichier TEXTE du dépôt en un commit sur la branche. Texte
-// uniquement : le contenu passe par TextEncoder. Les images (KD-93) demanderont une variante
-// qui encode des octets, pas une chaîne.
+// uniquement : le contenu passe par TextEncoder. Pour des octets (une photo), ou plusieurs
+// fichiers d'un coup, voir commitFiles.
 // `sha` : celui renvoyé par readRepoFile pour une mise à jour ; omis pour une création.
 // Sans le bon sha, GitHub répond 409 : c'est voulu, on ne veut jamais écraser à l'aveugle.
 // Une branche supprimée (preview survivant à son merge) donne un 404 GitHub : rien n'est écrit.
@@ -142,6 +147,98 @@ export function decodeBase64Utf8(base64) {
 // d'arguments dès quelques dizaines de milliers d'octets.
 export function encodeBase64Utf8(text) {
   const bytes = new TextEncoder().encode(text);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+
+/* ── Plusieurs fichiers en un commit (KD-93) ──
+
+   Une pièce enregistrée depuis le formulaire, c'est ses photos plus data/products.json — et rien
+   ne doit exister à moitié : un build qui verrait le JSON sans la photo échouerait (fichier
+   introuvable), un build qui verrait la photo sans le JSON ne casserait rien mais laisserait un
+   fichier orphelin. L'API Contents ne sait écrire qu'un fichier par commit ; l'API Git Data
+   assemble un commit entier : un blob par fichier, un arbre posé sur celui de la branche, un
+   commit, puis la référence.
+
+   La référence est mise à jour SANS force : si la branche a avancé entre la lecture de `parent`
+   et l'écriture (une bascule d'état depuis un autre onglet, une autre pièce enregistrée),
+   GitHub refuse (422 « not a fast forward ») et rien n'est écrit — l'appelant relit et rejoue,
+   comme pour le 409 de l'API Contents. C'est pour cela que `parent` est exigé : l'appelant lit
+   ses données À ce commit (readRepoFile avec `ref`), et l'écriture ne passe que si la branche
+   est toujours là. Les blobs créés d'un commit qui n'aboutit pas sont orphelins : GitHub les
+   nettoie, personne ne les voit. */
+
+// La tête de la branche du déploiement : le commit sur lequel lire, puis écrire.
+export async function branchHead(env) {
+  const config = repoConfig(env);
+  if (!config.branch) {
+    throw new GitHubError(0, 'branche du déploiement inconnue (build-info.js non généré) : écriture refusée');
+  }
+  const ref = await githubFetch(config, '/repos/' + config.repo + '/git/ref/heads/' + config.branch);
+  if (!ref.object || typeof ref.object.sha !== 'string') {
+    throw new GitHubError(0, 'la référence de la branche ' + config.branch + ' ne porte pas de commit');
+  }
+  return ref.object.sha;
+}
+
+// files : { path, text } pour un fichier texte, { path, bytes } (Uint8Array) pour une photo,
+// { path, remove: true } pour retirer un fichier. Renvoie { commit } — le sha du commit écrit.
+export async function commitFiles(env, { message, files, parent }) {
+  const config = repoConfig(env);
+  if (!config.branch) {
+    throw new GitHubError(0, 'branche du déploiement inconnue (build-info.js non généré) : écriture refusée');
+  }
+  if (typeof parent !== 'string' || !parent) throw new GitHubError(0, 'commitFiles : le commit parent est requis');
+  if (!Array.isArray(files) || !files.length) throw new GitHubError(0, 'commitFiles : aucun fichier à écrire');
+  const git = '/repos/' + config.repo + '/git';
+
+  const head = await githubFetch(config, git + '/commits/' + parent);
+
+  // Les blobs en parallèle : une photo n'attend pas la précédente
+  const entries = await Promise.all(files.map(async (file) => {
+    if (typeof file.path !== 'string' || !file.path || file.path.indexOf('..') !== -1 || file.path.charAt(0) === '/') {
+      throw new GitHubError(0, 'commitFiles : chemin refusé — ' + String(file.path));
+    }
+    if (file.remove) return { path: file.path, mode: '100644', type: 'blob', sha: null };
+    const content = file.bytes ? encodeBase64Bytes(file.bytes) : encodeBase64Utf8(String(file.text));
+    const blob = await githubFetch(config, git + '/blobs', {
+      method: 'POST',
+      body: JSON.stringify({ content, encoding: 'base64' }),
+    });
+    return { path: file.path, mode: '100644', type: 'blob', sha: blob.sha };
+  }));
+
+  const tree = await githubFetch(config, git + '/trees', {
+    method: 'POST',
+    body: JSON.stringify({ base_tree: head.tree.sha, tree: entries }),
+  });
+  const commit = await githubFetch(config, git + '/commits', {
+    method: 'POST',
+    body: JSON.stringify({ message, tree: tree.sha, parents: [parent], author: COMMIT_IDENTITY, committer: COMMIT_IDENTITY }),
+  });
+
+  try {
+    await githubFetch(config, git + '/refs/heads/' + config.branch, {
+      method: 'PATCH',
+      body: JSON.stringify({ sha: commit.sha, force: false }),
+    });
+  } catch (err) {
+    // La branche a bougé : même situation que le 409 de l'API Contents, même traitement
+    if (err instanceof GitHubError && err.status === 422) {
+      throw new GitHubError(409, 'la branche ' + config.branch + ' a avancé pendant l\'écriture (' + err.message + ')');
+    }
+    throw err;
+  }
+  return { commit: commit.sha };
+}
+
+// Des octets (une photo) en base64 — par tranches, comme encodeBase64Utf8. Jamais via une
+// chaîne : un octet ≥ 0x80 passé par TextEncoder deviendrait deux octets, et l'image serait
+// corrompue sans que rien ne le dise avant l'affichage (KD-90).
+export function encodeBase64Bytes(bytes) {
   let binary = '';
   for (let i = 0; i < bytes.length; i += 0x8000) {
     binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
