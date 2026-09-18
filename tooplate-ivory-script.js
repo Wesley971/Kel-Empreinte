@@ -73,32 +73,15 @@ donnée n'est chargée ici.
     estLabelObs.observe(processSection);
   }
 
-  /* ── FAQ: centrage figé au repos ──
-     La section fait un écran ; centrer le bloc en flex le ferait remonter de la moitié
-     de chaque réponse ouverte (voir .faq dans le CSS). On mesure la marge libre bloc
-     fermé et on pose la moitié en --faq-offset : l'ouverture ne pousse plus que vers le bas. */
-  var faqSection = document.querySelector('.faq');
-  var faqInner = document.querySelector('.faq-inner');
-  var faqItems = document.querySelectorAll('.faq-item');
-  var faqStage = document.querySelector('.faq-stage');
-  var faqSplit = window.matchMedia('(min-width: 769px)');
-
-  function centerFaq() {
-    if (!faqSection || !faqInner) return;
-    // En accordéon, seule la mesure bloc fermé est juste : une réponse ouverte fausserait le
-    // centrage. En format à panneau, la hauteur du bloc ne dépend pas de la réponse affichée
-    // (la scène réserve la plus longue), donc on mesure même avec une question sélectionnée.
-    if (!faqSplit.matches && faqSection.querySelector('.faq-item.is-open')) return;
-    faqSection.style.setProperty('--faq-offset', '0px');      // sinon l'offset précédent fausse la mesure
-    var cs = getComputedStyle(faqSection);
-    var free = faqSection.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - faqInner.offsetHeight;
-    faqSection.style.setProperty('--faq-offset', Math.max(0, free / 2) + 'px');
-  }
-
   /* ── FAQ: accordéon sur mobile, réponse dans une scène dédiée au-delà de 768px ──
      Les réponses sont écrites dans leur question (accordéon, et rendu sans script). Au-dessus
      du point de bascule, elles sont déplacées dans .faq-stage et affichées une à la fois :
      cliquer une question ne modifie plus que le contenu de la scène, la liste ne bouge pas. */
+  var faqSection = document.querySelector('.faq');
+  var faqItems = document.querySelectorAll('.faq-item');
+  var faqStage = document.querySelector('.faq-stage');
+  var faqSplit = window.matchMedia('(min-width: 769px)');
+
   function faqPanelOf(item) {
     var trigger = item.querySelector('.faq-trigger');
     return trigger ? document.getElementById(trigger.getAttribute('aria-controls')) : null;
@@ -141,7 +124,6 @@ donnée n'est chargée ici.
       // loin de sa question dans l'ordre de lecture (elle suit toute la liste), d'où l'annonce.
       setTimeout(function() { if (faqSplit.matches) faqStage.setAttribute('aria-live', 'polite'); }, 0);
     }
-    centerFaq();
   }
 
   faqItems.forEach(function(item) {
@@ -155,17 +137,9 @@ donnée n'est chargée ici.
         showFaq(item, !item.classList.contains('is-open'));
       }
     });
-    // Rattrape un redimensionnement survenu panneau ouvert : recalcul une fois le panneau
-    // refermé (fin de transition, pas au clic, sinon la mesure inclurait le panneau en cours de fermeture)
-    panel.addEventListener('transitionend', function(e) {
-      if (e.propertyName === 'grid-template-rows' && !item.classList.contains('is-open')) centerFaq();
-    });
   });
 
   applyFaqLayout();
   faqSplit.addEventListener('change', applyFaqLayout); // au franchissement seulement, pas à chaque resize
-  window.addEventListener('load', centerFaq);
-  window.addEventListener('resize', centerFaq);
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(centerFaq); // le swap Fraunces change la hauteur du bloc
 
 })();

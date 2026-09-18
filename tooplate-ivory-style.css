@@ -615,11 +615,7 @@ picture { display: contents; }
 .faq {
   background: var(--oat);
   display: flex;
-  /* Pas de centrage flex : la section fait un écran (min-height: 100vh) et un bloc centré
-     remonterait de moitié à chaque ouverture de réponse. Le centrage au repos est reporté
-     sur --faq-offset (calculé bloc fermé par le script) ; un panneau ouvert ne pousse
-     donc que ce qui est en dessous. Sans script : bloc aligné en haut. */
-  align-items: flex-start;
+  align-items: flex-start; /* la section suit son contenu : ouvrir une réponse ne pousse que ce qui est en dessous */
   padding: 100px 64px;
   border-top: 1px solid var(--oat-deep);
 }
@@ -627,7 +623,7 @@ picture { display: contents; }
 .faq-inner {
   width: 100%;
   max-width: 900px;
-  margin: var(--faq-offset, 0px) auto 0;
+  margin: 0 auto;
 }
 
 .faq-header {
