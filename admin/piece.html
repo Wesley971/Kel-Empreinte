@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Fiche d'une pièce — Kel'Empreinte</title>
+  <link rel="icon" type="image/png" sizes="200x200" href="/images/logo/logo-kel-empreinte.png" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="manifest" href="/admin/manifest.webmanifest" crossorigin="use-credentials" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..500&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/tokens.css" />
+  <link rel="stylesheet" href="/admin/gestion.css" />
+</head>
+<body class="kel-piece-page">
+  <!-- Fiche d'une pièce — /admin/piece (KD-93) : ajouter (sans paramètre), modifier (?id=…) ou
+       dupliquer (?from=…) une pièce. Une page qui défile, une colonne, un seul bouton
+       « Enregistrer » en haut — comme SumUp, dont l'interface convient à Prescilia. Photo d'abord,
+       toujours. Tout le comportement est dans piece.js ; les listes de choix (types, publics)
+       viennent de catalog.js, les collections de GET /api/admin/products. -->
+
+  <div class="kel-top">
+    <header class="kel-header kel-header--form">
+      <a class="kel-back" href="/admin/" aria-label="Retour à Mes bijoux"><span aria-hidden="true">&larr;</span><span class="kel-back-text"> Mes bijoux</span></a>
+      <h1 class="kel-header-title" id="title">Nouvelle pièce</h1>
+      <button type="submit" class="kel-button kel-save" id="save" form="piece-form">Enregistrer</button>
+    </header>
+    <p class="kel-status" id="status" role="status" aria-live="polite" hidden>
+      <span class="kel-status-dot" aria-hidden="true"></span><span id="status-text">Enregistrement en cours…</span>
+    </p>
+  </div>
+
+  <main class="kel-main">
+    <p class="kel-loading" id="loading">Chargement de la pièce…</p>
+    <div class="kel-error" id="error" role="alert" hidden>
+      <p id="error-text"></p>
+      <button type="button" class="kel-button" id="retry">Réessayer</button>
+    </div>
+
+    <form class="kel-form" id="piece-form" novalidate hidden>
+      <!-- Une copie : d'où elle vient, ce qui reste à donner -->
+      <p class="kel-note" id="note" hidden></p>
+
+      <!-- 1. Photos : d'abord, toujours. La première est la vignette partout. -->
+      <fieldset class="kel-block">
+        <legend class="kel-block-title">Photos</legend>
+        <p class="kel-block-help">La première photo est celle qu'on voit en boutique. Ajoutez-en autant que vous voulez, dans l'ordre que vous voulez.</p>
+        <ul class="kel-photos" id="photos" aria-label="Photos de la pièce"></ul>
+        <div class="kel-photo-add">
+          <label class="kel-button kel-button--secondary kel-photo-button">
+            Prendre une photo
+            <input type="file" id="photo-camera" accept="image/*" capture="environment" hidden />
+          </label>
+          <label class="kel-button kel-button--secondary kel-photo-button">
+            Choisir dans la galerie
+            <input type="file" id="photo-gallery" accept="image/*" multiple hidden />
+          </label>
+        </div>
+        <p class="kel-field-error" id="photos-error" role="alert" hidden></p>
+      </fieldset>
+
+      <!-- 2. Nom -->
+      <label class="kel-field">
+        <span class="kel-field-label">Nom de la pièce</span>
+        <input type="text" id="name" name="name" autocomplete="off" autocapitalize="words" placeholder="ex. Herbier Jaune Velours" enterkeyhint="next" />
+        <span class="kel-field-error" id="name-error" role="alert" hidden></span>
+      </label>
+
+      <!-- 3. Référence : texte libre, comme elle l'écrit -->
+      <label class="kel-field">
+        <span class="kel-field-label">Référence</span>
+        <input type="text" id="reference" name="reference" autocomplete="off" autocapitalize="characters" placeholder="ex. BO-023" enterkeyhint="next" />
+        <span class="kel-field-help">Comme vous l'écrivez d'habitude. Facultative.</span>
+        <span class="kel-field-error" id="reference-error" role="alert" hidden></span>
+      </label>
+
+      <!-- 4. Collections : plusieurs possibles -->
+      <fieldset class="kel-field">
+        <legend class="kel-field-label">Collections</legend>
+        <div class="kel-choices" id="collections"></div>
+        <span class="kel-field-help">Une pièce peut être dans plusieurs collections. « Nouveautés » est automatique.</span>
+      </fieldset>
+
+      <!-- 5. Public -->
+      <fieldset class="kel-field">
+        <legend class="kel-field-label">Pour qui</legend>
+        <div class="kel-choices" id="audience"></div>
+      </fieldset>
+
+      <!-- 6. Type -->
+      <fieldset class="kel-field">
+        <legend class="kel-field-label">Type de pièce</legend>
+        <div class="kel-choices" id="category"></div>
+      </fieldset>
+
+      <!-- 7. Description : sans limite, sa voix -->
+      <label class="kel-field">
+        <span class="kel-field-label">Description</span>
+        <textarea id="desc" name="desc" rows="4" placeholder="Comme sur WhatsApp : racontez la pièce, les retours à la ligne et les emojis sont gardés 🌸"></textarea>
+      </label>
+
+      <!-- 10. Prix -->
+      <label class="kel-field">
+        <span class="kel-field-label">Prix</span>
+        <span class="kel-field-amount">
+          <input type="text" inputmode="decimal" id="price" name="price" autocomplete="off" placeholder="ex. 25" />
+          <span class="kel-field-unit">€</span>
+        </span>
+        <span class="kel-field-error" id="price-error" role="alert" hidden></span>
+      </label>
+
+      <!-- 12. Mise en avant -->
+      <label class="kel-switch">
+        <input type="checkbox" id="featured" name="featured" />
+        <span class="kel-switch-track" aria-hidden="true"></span>
+        <span class="kel-switch-text">
+          <span class="kel-switch-label">Mettre en avant sur l'accueil</span>
+          <span class="kel-field-help">Parmi les premières pièces que voient les visiteuses.</span>
+        </span>
+      </label>
+
+      <!-- 13. État : « En vente » dès qu'il y a une photo et un prix, sinon brouillon. Une pièce
+           déjà publiée ne change pas d'état ici (c'est la liste qui réserve, vend, retire). -->
+      <fieldset class="kel-field kel-publish" id="publish">
+        <legend class="kel-field-label">Publication</legend>
+        <div class="kel-choices kel-choices--big" id="availability">
+          <label class="kel-choice kel-choice--big"><input type="radio" name="availability" value="disponible" /> En vente sur le site</label>
+          <label class="kel-choice kel-choice--big"><input type="radio" name="availability" value="brouillon" /> Brouillon, invisible</label>
+        </div>
+        <span class="kel-field-help" id="publish-help"></span>
+      </fieldset>
+      <p class="kel-publish-fixed" id="publish-fixed" hidden></p>
+
+      <!-- Un brouillon jamais publié se supprime ; une pièce publiée se retire depuis la liste -->
+      <div class="kel-danger" id="danger" hidden>
+        <button type="button" class="kel-button kel-button--secondary kel-button--danger" id="delete">Supprimer ce brouillon</button>
+      </div>
+    </form>
+  </main>
+
+  <div class="kel-toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- Gabarit d'une photo de la liste -->
+  <template id="photo-template">
+    <li class="kel-photo">
+      <img class="kel-photo-img" alt="" />
+      <span class="kel-photo-badge" hidden>Vignette</span>
+      <div class="kel-photo-actions">
+        <button type="button" class="kel-photo-first" aria-label="Mettre en première">★ Première</button>
+        <button type="button" class="kel-photo-remove" aria-label="Retirer cette photo">×</button>
+      </div>
+    </li>
+  </template>
+
+  <!-- Confirmation d'une phrase, pour ce qui ne se défait pas d'un geste -->
+  <dialog class="kel-sheet" id="confirm" aria-labelledby="confirm-title">
+    <form method="dialog" class="kel-sheet-body">
+      <p class="kel-sheet-title" id="confirm-title"></p>
+      <p class="kel-sheet-text" id="confirm-text"></p>
+      <div class="kel-sheet-buttons">
+        <button type="submit" class="kel-button kel-button--secondary" value="cancel">Annuler</button>
+        <button type="submit" class="kel-button" id="confirm-ok" value="ok"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/catalog.js"></script>
+  <script src="/admin/common.js"></script>
+  <script src="/admin/piece.js"></script>
+</body>
+</html>

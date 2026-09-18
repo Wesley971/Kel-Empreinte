@@ -1,5 +1,6 @@
 @charset "utf-8";
-/* Écran « Mes bijoux » — /admin/ (KD-92, cinq états avec KD-98, à /admin/ depuis KD-95).
+/* Espace de gestion — l'écran « Mes bijoux » (/admin/, KD-92, cinq états avec KD-98, à /admin/
+   depuis KD-95) et la fiche d'une pièce (/admin/piece, KD-93, en fin de fichier).
 
    Mobile d'abord : Prescilia gère ses pièces depuis son téléphone. Une colonne, des cibles
    tactiles d'au moins 44 px, du texte lisible sans zoom, des feuilles qui montent du bas de
@@ -29,6 +30,9 @@
 picture { display: contents; }
 
 *, *::before, *::after { box-sizing: border-box; }
+
+/* L'attribut hidden l'emporte sur tout display posé par une classe (un champ, une erreur, un bloc) */
+[hidden] { display: none !important; }
 
 html { height: 100%; }
 
@@ -403,7 +407,6 @@ body {
   border-radius: 0 8px 8px 0;
 }
 
-.kel-row-foot .kel-row-error[hidden] { display: none; }
 
 .kel-row-error::before {
   content: "!";
@@ -693,6 +696,7 @@ body {
 
 .kel-choice:has(input:checked) { color: var(--oat); background: var(--ink); border-color: var(--ink); }
 .kel-choice:has(input:focus-visible) { outline: 2px solid var(--terra); outline-offset: 2px; }
+.kel-choice:has(input:disabled) { color: var(--ink-muted); border-style: dashed; cursor: default; }
 
 /* ── Toast de confirmation ── */
 
@@ -726,4 +730,226 @@ body {
   .kel-sheet { inset: auto 0 24px 0; border-radius: 20px; }
   .kel-sheet-body { padding: 24px; }
   .kel-sheet-buttons { margin: 16px -24px -24px; padding: 10px 24px 24px; }
+}
+
+/* ══ Fiche d'une pièce — /admin/piece (KD-93) ══
+
+   Une page qui défile, une colonne, un seul bouton « Enregistrer » collé en haut. Les champs
+   reprennent ceux de la modale « Marquer vendue » (kel-field, kel-choices) ; s'y ajoutent les
+   photos (une grille de vignettes carrées, la première marquée), un interrupteur, un
+   commutateur de publication et une zone de danger pour supprimer un brouillon. */
+
+.kel-header--form { gap: 10px; }
+.kel-header--form .kel-header-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 19px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kel-back {
+  flex: none;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.kel-back:hover, .kel-back:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
+/* Au téléphone, la flèche seule : le titre et « Enregistrer » ont besoin de la place */
+.kel-back-text { display: none; }
+.kel-back { min-width: 32px; font-size: 20px; line-height: 1; }
+
+.kel-save { flex: none; min-height: 40px; padding: 0 18px; }
+.kel-save[disabled] { opacity: 0.5; cursor: default; }
+
+.kel-form { margin-top: 4px; }
+
+.kel-note {
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  background: var(--terra-ghost);
+  border-radius: 12px;
+}
+
+/* Un bloc titré (les photos) */
+.kel-block {
+  margin: 0 0 24px;
+  padding: 0;
+  border: none;
+  min-inline-size: 0;
+}
+.kel-block-title {
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.kel-block-help { margin: 6px 0 12px; font-size: 14px; color: var(--ink-muted); }
+
+/* ── Photos : des vignettes carrées, trois par ligne au téléphone ── */
+
+.kel-photos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.kel-photos:empty { margin: 0; }
+
+.kel-photo {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--oat-mid);
+  border: 1px solid var(--oat-deep);
+}
+.kel-photo:first-child { border: 2px solid var(--terra); }
+.kel-photo-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.kel-photo[aria-busy="true"] .kel-photo-img { opacity: 0.4; }
+
+.kel-photo-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--oat);
+  background: var(--terra);
+  border-radius: 10px;
+}
+
+/* Les deux gestes, en bas de la vignette : « Première » à gauche, la croix à droite */
+.kel-photo-actions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 4px;
+  background: linear-gradient(to top, rgba(26, 23, 20, 0.55), rgba(26, 23, 20, 0));
+}
+.kel-photo-first, .kel-photo-remove {
+  min-height: 32px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--white);
+  background: rgba(26, 23, 20, 0.55);
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+}
+.kel-photo-remove { min-width: 32px; padding: 0; font-size: 20px; line-height: 1; }
+.kel-photo:first-child .kel-photo-first { visibility: hidden; }
+.kel-photo-first:focus-visible, .kel-photo-remove:focus-visible { outline: 2px solid var(--oat); outline-offset: 1px; }
+
+.kel-photo-add { display: flex; flex-wrap: wrap; gap: 8px; }
+.kel-photo-button { display: inline-flex; align-items: center; gap: 8px; }
+
+/* ── Champs : la zone de texte et les messages d'erreur ── */
+
+.kel-field textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 17px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--oat);
+  border: 1px solid var(--ink-faint);
+  border-radius: 12px;
+  resize: vertical;
+  color-scheme: light dark;
+}
+.kel-field textarea:focus-visible { outline: 2px solid var(--terra); outline-offset: 1px; border-color: var(--terra); }
+
+.kel-field-error {
+  display: block;
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--kel-error);
+}
+.kel-field--invalid input, .kel-field--invalid textarea { border-color: var(--kel-error); }
+
+/* ── Interrupteur (mise en avant) ── */
+
+.kel-switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 20px;
+  cursor: pointer;
+}
+.kel-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.kel-switch-track {
+  flex: none;
+  position: relative;
+  width: 48px;
+  height: 28px;
+  margin-top: 1px;
+  border-radius: 14px;
+  background: var(--ink-faint);
+  transition: background 0.15s;
+}
+.kel-switch-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--white);
+  box-shadow: 0 1px 3px rgba(26, 23, 20, 0.3);
+  transition: transform 0.15s;
+}
+.kel-switch input:checked + .kel-switch-track { background: var(--terra); }
+.kel-switch input:checked + .kel-switch-track::after { transform: translateX(20px); }
+.kel-switch input:focus-visible + .kel-switch-track { outline: 2px solid var(--terra); outline-offset: 2px; }
+.kel-switch-text { display: flex; flex-direction: column; gap: 2px; }
+.kel-switch-label { font-weight: 500; }
+
+/* ── Publication : deux grandes pastilles, l'une ou l'autre ── */
+
+.kel-choices--big { flex-direction: column; }
+.kel-choice--big { min-height: 48px; padding: 0 16px; font-size: 16px; }
+
+.kel-publish { margin-bottom: 24px; }
+.kel-publish-fixed {
+  margin: 0 0 24px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--ink-muted);
+  background: var(--oat-mid);
+  border-radius: 12px;
+}
+
+/* ── Supprimer un brouillon : loin des autres boutons, et jamais rouge plein ── */
+
+.kel-danger { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--oat-deep); text-align: center; }
+.kel-button--danger { color: var(--kel-error); border-color: var(--kel-error); }
+
+@media (min-width: 640px) {
+  .kel-header--form .kel-header-title { font-size: 22px; }
+  .kel-back { font-size: 14px; line-height: 1.5; }
+  .kel-back-text { display: inline; }
+  .kel-photos { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .kel-choices--big { flex-direction: row; }
 }
