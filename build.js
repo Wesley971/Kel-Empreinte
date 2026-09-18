@@ -559,6 +559,36 @@ function renderSignatureContact(site, indent) {
     '<span aria-hidden="true">\u00b7</span> <a href="' + esc(contact.whatsapp) + '" target="_blank" rel="noopener noreferrer">WhatsApp</a></div>';
 }
 
+/* FAQ de l'accueil : les deux réponses qui portent des données (KD-116). Les trois autres restent
+   écrites dans index.html. Voix « je », vouvoiement ; rien qui ne soit pas encore vrai ou tranché :
+   ni lieu de remise en main propre, ni destination, ni délai d'acheminement (voir KD-105). */
+
+function renderFaqCustomization(site, indent) {
+  return indent + '<p class="faq-answer">Oui\u00a0: la couleur, la taille et la forme peuvent être adaptées. ' +
+    whatsAppCta(site, 'Écrivez-moi sur WhatsApp') + ' ' +
+    'en décrivant votre envie\u00a0: je vous réponds avec un <strong class="faq-key">devis sous 72\u00a0h</strong>.</p>';
+}
+
+// « Lettre suivie (3,90 €, offerte à partir de 30 € d'achat) ou Colissimo (5,90 €, quel que
+// soit le montant) » — le mode standard d'abord, puis les autres ; un mode de plus dans
+// data/shipping.json s'ajoute à la phrase sans la retoucher.
+function describeShippingMethod(method) {
+  var text = '<strong class="faq-key">' + esc(method.label) + '</strong> (' + catalog.formatAmount(method.price);
+  if (method.freeFrom) text += ', <strong class="faq-key">offerte à partir de ' + catalog.formatAmount(method.freeFrom) + '</strong> d\'achat';
+  else text += ', quel que soit le montant';
+  return text + ')';
+}
+
+function renderFaqShipping(shipping, indent) {
+  var standard = shipping.methods.filter(function(m) { return m.standard; });
+  var others = shipping.methods.filter(function(m) { return !m.standard; });
+  var modes = standard.concat(others).map(describeShippingMethod);
+  var choice = modes.length > 1 ? modes.slice(0, -1).join(', ') + ' ou ' + modes[modes.length - 1] : modes[0];
+  return indent + '<p class="faq-answer">Vous réglez par carte bancaire ou par PayPal. ' +
+    'Pour l\'envoi, vous choisissez à la commande\u00a0: ' + choice + '. ' +
+    'Vous pouvez aussi récupérer votre pièce en main propre, sur rendez-vous.</p>';
+}
+
 /* Boutique */
 
 function renderChip(value, label, count) {
@@ -871,6 +901,8 @@ var footer = renderFooter(footerPartial, site);
 var indexPage = withCommon(indexHtml, navHome, null);
 indexPage = put(indexPage, 'signature-contact', renderSignatureContact(site, '      '));
 indexPage = put(indexPage, 'signature-links', shopLinks(site, '        '));
+indexPage = put(indexPage, 'faq-customization', renderFaqCustomization(site, '                '));
+indexPage = put(indexPage, 'faq-shipping', renderFaqShipping(shipping, '                '));
 indexPage = fill(indexPage, 'home-featured', renderHomeFeatured(products, site, '    '), '    ');
 indexPage = fill(indexPage, 'home-collections', renderHomeCollections(products, collections, '    '), '    ');
 var indexOutput = indexPage.text;
