@@ -18,8 +18,9 @@
   <!-- Fiche d'une pièce — /admin/piece (KD-93) : ajouter (sans paramètre), modifier (?id=…) ou
        dupliquer (?from=…) une pièce. Une page qui défile, une colonne, un seul bouton
        « Enregistrer » en haut — comme SumUp, dont l'interface convient à Prescilia. Photo d'abord,
-       toujours. Tout le comportement est dans piece.js ; les listes de choix (types, publics)
-       viennent de catalog.js, les collections de GET /api/admin/products. -->
+       toujours. Tout le comportement est dans piece.js (photos préparées dans le navigateur,
+       envoi en un commit, retour à la liste) ; les listes de choix (types, publics) viennent de
+       catalog.js, les collections de GET /api/admin/products. -->
 
   <div class="kel-top">
     <header class="kel-header kel-header--form">
@@ -42,6 +43,8 @@
     <form class="kel-form" id="piece-form" novalidate hidden>
       <!-- Une copie : d'où elle vient, ce qui reste à donner -->
       <p class="kel-note" id="note" hidden></p>
+      <!-- L'enregistrement a échoué : la raison, la fiche reste telle quelle -->
+      <div class="kel-error" id="failure" role="alert" hidden><p id="failure-text"></p></div>
 
       <!-- 1. Photos : d'abord, toujours. La première est la vignette partout. -->
       <fieldset class="kel-block">

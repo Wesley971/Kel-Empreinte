@@ -1,4 +1,4 @@
-/* Fiche d'une pièce — /admin/piece (KD-93) : ajouter, modifier, dupliquer.
+/* Fiche d'une pièce — /admin/piece (KD-93) : ajouter, modifier, dupliquer, supprimer un brouillon.
 
    Trois entrées, lues dans l'adresse :
      /admin/piece            une nouvelle pièce, à partir de zéro
@@ -14,14 +14,25 @@
    catalog.js — les mêmes qu'appliquent l'API et le build. L'appel à l'API, le toast, les feuilles
    et la confirmation viennent de common.js, partagés avec « Mes bijoux ».
 
-   MAQUETTE (étape 4 de KD-93) : l'écran se remplit et se manipule, mais n'enregistre pas encore —
-   « Enregistrer » le dit. Le câblage (photos réduites en WebP, envoi, retour à la liste) arrive
-   avec l'étape 6, une fois la maquette vue par Prescilia. */
+   Les photos sont préparées dans le navigateur avant l'envoi : décodées avec leur orientation,
+   réduites à 1 600 px de grand côté, réencodées en WebP (JPEG si le navigateur ne sait pas
+   encoder le WebP), puis envoyées en base64 dans le JSON — l'API les passe telles quelles à
+   GitHub, sans les décoder (voir functions/_lib/photos.js pour le pourquoi : le temps CPU).
+
+   Enregistrer : POST (nouvelle pièce) ou PUT (modification), un seul commit côté dépôt, puis
+   retour à « Mes bijoux » sur la pièce. Si ça échoue, la fiche reste telle quelle, avec la raison
+   en tête : elle réessaie sans rien ressaisir. Si la session Access expire pendant la saisie, le
+   texte est mis de côté avant le rechargement et restauré après — les photos non envoyées, non
+   (dit à l'écran). */
 
 (function () {
   'use strict';
 
   var API = '/api/admin/products';
+  var MAX_SIDE = 1600;       // grand côté d'une photo envoyée, en pixels
+  var WEBP_QUALITY = 0.82;
+  var JPEG_QUALITY = 0.85;
+  var MAX_PHOTOS = 10;
   var catalog = window.KelCatalog;
   var admin = window.KelAdmin;
 
@@ -36,6 +47,8 @@
     retry: document.getElementById('retry'),
     form: document.getElementById('piece-form'),
     note: document.getElementById('note'),
+    failure: document.getElementById('failure'),
+    failureText: document.getElementById('failure-text'),
     photos: document.getElementById('photos'),
     photoCamera: document.getElementById('photo-camera'),
     photoGallery: document.getElementById('photo-gallery'),
@@ -82,12 +95,15 @@
   var params = new URLSearchParams(window.location.search);
   var mode = params.get('id') ? 'edit' : params.get('from') ? 'copy' : 'new';
   var sourceId = params.get('id') || params.get('from') || null;
+  var DRAFT_KEY = 'kel-piece-draft:' + mode + ':' + (sourceId || '');
 
   var products = [];      // la liste de l'API : unicité de la référence
-  var collections = [];   // les collections, pour les cases
-  var existing = null;    // la pièce modifiée (mode edit), telle que l'API l'a donnée
-  var photos = [];        // dans l'ordre affiché : { src, alt } (existante) ou { file, preview } (ajoutée)
+  var collections = [];   // les collections, pour les cases et le type suggéré
+  var existing = null;    // la pièce source (edit : celle qu'on modifie ; copy : le modèle)
+  var photos = [];        // dans l'ordre affiché : { src, alt } (existante) ou { blob, kind, preview, name, busy } (ajoutée)
   var userChoseState = false; // tant qu'elle n'a pas touché « Publication », l'état suit photo + prix
+  var dirty = false;      // quelque chose a changé depuis le chargement
+  var saving = false;
 
   /* ── Chargement ── */
 
@@ -112,6 +128,7 @@
         hide(els.loading);
         buildChoices();
         fill();
+        restoreDraft();
         show(els.form);
       })
       .catch(function (err) {
@@ -125,6 +142,7 @@
   function reconnect() {
     admin.reconnect({
       toast: showToast,
+      beforeReload: stashDraft,
       onBlocked: function (message) {
         hide(els.loading);
         els.errorText.textContent = message;
@@ -220,16 +238,19 @@
       var item = els.photoTemplate.content.firstElementChild.cloneNode(true);
       var img = item.querySelector('.kel-photo-img');
       img.src = photo.preview || ('/' + catalog.normalizeImagePath(photo.src));
-      img.alt = photo.alt || '';
+      img.alt = photo.alt || photo.name || '';
       item.querySelector('.kel-photo-badge').hidden = index !== 0;
+      if (photo.busy) item.setAttribute('aria-busy', 'true');
       item.querySelector('.kel-photo-first').addEventListener('click', function () {
         photos.splice(0, 0, photos.splice(index, 1)[0]);
+        touched();
         renderPhotos();
         updatePublish();
       });
       item.querySelector('.kel-photo-remove').addEventListener('click', function () {
         if (photo.preview) URL.revokeObjectURL(photo.preview);
         photos.splice(index, 1);
+        touched();
         renderPhotos();
         updatePublish();
       });
@@ -237,17 +258,40 @@
     });
   }
 
+  // Chaque fichier choisi entre dans la liste tout de suite (vignette grisée), puis est préparé :
+  // décodé avec son orientation, réduit, réencodé. Une photo illisible sort de la liste avec un mot.
   function addFiles(files) {
     hide(els.photosError);
-    Array.prototype.forEach.call(files, function (file) {
-      if (!/^image\//.test(file.type)) {
-        els.photosError.textContent = 'Ce fichier n\'est pas une photo : ' + file.name;
-        show(els.photosError);
-        return;
-      }
-      photos.push({ file: file, preview: URL.createObjectURL(file) });
+    var room = MAX_PHOTOS - photos.length;
+    var list = Array.prototype.slice.call(files);
+    if (list.length > room) {
+      els.photosError.textContent = 'Au plus ' + MAX_PHOTOS + ' photos par pièce : ' + (list.length - Math.max(0, room)) + ' n\'ont pas été prises.';
+      show(els.photosError);
+      list = list.slice(0, Math.max(0, room));
+    }
+    list.forEach(function (file) {
+      var photo = { name: file.name, busy: true, preview: null };
+      photos.push(photo);
+      touched();
+      renderPhotos();
+      preparePhoto(file)
+        .then(function (prepared) {
+          photo.blob = prepared.blob;
+          photo.kind = prepared.kind;
+          photo.preview = URL.createObjectURL(prepared.blob);
+          photo.busy = false;
+          renderPhotos();
+          updatePublish();
+        })
+        .catch(function () {
+          var at = photos.indexOf(photo);
+          if (at !== -1) photos.splice(at, 1);
+          els.photosError.textContent = 'Cette photo n\'a pas pu être lue (format non pris en charge) : ' + file.name;
+          show(els.photosError);
+          renderPhotos();
+          updatePublish();
+        });
     });
-    renderPhotos();
     updatePublish();
   }
 
@@ -257,6 +301,58 @@
       input.value = ''; // la même photo peut être reprise
     });
   });
+
+  // Décode (orientation EXIF comprise), réduit à MAX_SIDE, réencode en WebP — ou en JPEG si le
+  // navigateur rend autre chose que du WebP (Safari). Renvoie { blob, kind }.
+  function preparePhoto(file) {
+    return decodeImage(file).then(function (image) {
+      var scale = Math.min(1, MAX_SIDE / Math.max(image.width, image.height));
+      var width = Math.max(1, Math.round(image.width * scale));
+      var height = Math.max(1, Math.round(image.height * scale));
+      var canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(image, 0, 0, width, height);
+      if (typeof image.close === 'function') image.close();
+      return toBlob(canvas, 'image/webp', WEBP_QUALITY).then(function (blob) {
+        if (blob && blob.type === 'image/webp') return { blob: blob, kind: 'webp' };
+        return toBlob(canvas, 'image/jpeg', JPEG_QUALITY).then(function (jpeg) {
+          if (!jpeg) throw new Error('encodage impossible');
+          return { blob: jpeg, kind: 'jpeg' };
+        });
+      });
+    });
+  }
+
+  function decodeImage(file) {
+    if (typeof window.createImageBitmap === 'function') {
+      return window.createImageBitmap(file, { imageOrientation: 'from-image' }).catch(function () { return decodeWithImg(file); });
+    }
+    return decodeWithImg(file);
+  }
+
+  function decodeWithImg(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('image illisible')); };
+      img.src = url;
+    });
+  }
+
+  function toBlob(canvas, type, quality) {
+    return new Promise(function (resolve) { canvas.toBlob(resolve, type, quality); });
+  }
+
+  function toBase64(blob) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(String(reader.result).split(',')[1]); };
+      reader.onerror = function () { reject(reader.error); };
+      reader.readAsDataURL(blob);
+    });
+  }
 
   /* ── Ce que la pièce serait, telle que l'API la jugerait ── */
 
@@ -278,7 +374,7 @@
       desc: els.desc.value,
       price: typeof price === 'number' && !isNaN(price) ? price : null,
       featured: els.featured.checked,
-      images: photos.map(function (photo) { return photo.src ? { src: photo.src } : { upload: 'photo' }; })
+      images: photos.filter(function (photo) { return !photo.busy; }).map(function (photo) { return photo.src ? { src: photo.src } : { upload: 'photo' }; })
     };
   }
 
@@ -309,8 +405,14 @@
     }
   }
 
+  function targetState() {
+    if (mode === 'edit' && existing.availability !== 'brouillon') return null; // l'état ne s'envoie pas
+    return checked(els.publish, 'availability')[0] || 'brouillon';
+  }
+
   els.publish.addEventListener('change', function () {
     userChoseState = true;
+    touched();
     updatePublish();
   });
 
@@ -343,7 +445,7 @@
       if (!catalog.normalizeReference(reference)) {
         message = 'La référence doit contenir au moins une lettre ou un chiffre.';
       } else {
-        var owner = catalog.referenceOwner(products, reference, existing && mode === 'edit' ? existing.id : null);
+        var owner = catalog.referenceOwner(products, reference, mode === 'edit' ? existing.id : null);
         if (owner) message = 'La référence ' + reference + ' est déjà portée par « ' + owner.name + ' ». Si ce n\'est pas la même pièce, choisissez une autre référence.';
       }
     }
@@ -358,11 +460,26 @@
     return !message;
   }
 
+  function touched() { dirty = true; }
+
+  els.form.addEventListener('input', touched);
+  els.form.addEventListener('change', touched);
   els.name.addEventListener('input', function () { if (!els.nameError.hidden) checkName(); });
   els.name.addEventListener('blur', checkName);
   els.reference.addEventListener('input', checkReference);
   els.price.addEventListener('input', function () { checkPrice(); updatePublish(); });
   [els.audience, els.category].forEach(function (group) { group.addEventListener('change', updatePublish); });
+
+  // Le type suggéré par la collection (collections.json, `category`) : un préremplissage quand
+  // aucun type n'est encore choisi — jamais une règle, elle change ce qu'elle veut
+  els.collections.addEventListener('change', function (event) {
+    if (!event.target.checked || checked(els.category, 'category').length) return;
+    var collection = collections.filter(function (c) { return c.id === event.target.value; })[0];
+    if (collection && collection.category) {
+      check(els.category, 'category', [collection.category]);
+      updatePublish();
+    }
+  });
 
   // La description grandit avec le texte : pas d'ascenseur dans un ascenseur au téléphone
   function autosize(textarea) {
@@ -371,24 +488,141 @@
   }
   els.desc.addEventListener('input', function () { autosize(els.desc); });
 
-  /* ── Enregistrer — maquette : pas encore ── */
+  // Quitter avec des changements non enregistrés : le navigateur demande confirmation
+  window.addEventListener('beforeunload', function (event) {
+    if (!dirty || saving) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
+
+  /* ── Enregistrer ── */
 
   els.form.addEventListener('submit', function (event) {
     event.preventDefault();
-    var ok = checkName() & checkReference() & checkPrice();
+    if (saving) return;
+    hide(els.failure);
+    var ok = [checkName(), checkReference(), checkPrice()].every(Boolean);
     if (!ok) {
       var firstError = els.form.querySelector('.kel-field--invalid input');
       if (firstError) firstError.focus();
       return;
     }
-    showToast('Maquette : l\'enregistrement arrive à l\'étape suivante. Dites ce qui vous gêne ou vous manque.');
+    if (photos.some(function (photo) { return photo.busy; })) {
+      showToast('Les photos sont encore en préparation, un instant…');
+      return;
+    }
+    save();
   });
 
+  function setSaving(on, message) {
+    saving = on;
+    els.form.setAttribute('aria-busy', on ? 'true' : 'false');
+    els.save.disabled = on;
+    els.deleteButton.disabled = on;
+    els.photoCamera.disabled = on;
+    els.photoGallery.disabled = on;
+    els.statusText.textContent = message || 'Enregistrement en cours…';
+    els.status.hidden = !on;
+  }
+
+  function save() {
+    var piece = candidate();
+    var state = targetState();
+    if (state) piece.availability = state;
+    var uploads = photos.filter(function (photo) { return photo.blob; });
+    var uploaded = 0;
+    piece.images = photos.map(function (photo) {
+      return photo.src ? { src: photo.src } : { upload: 'photo-' + (++uploaded) };
+    });
+    setSaving(true, uploads.length ? 'Envoi de ' + uploads.length + ' photo' + (uploads.length > 1 ? 's' : '') + ' et enregistrement…' : 'Enregistrement en cours…');
+
+    Promise.all(uploads.map(function (photo) { return toBase64(photo.blob); }))
+      .then(function (encoded) {
+        var body = { piece: piece, photos: {} };
+        encoded.forEach(function (base64, i) { body.photos['photo-' + (i + 1)] = base64; });
+        var path = mode === 'edit' ? API + '/' + encodeURIComponent(existing.id) : API;
+        return admin.api(path, {
+          method: mode === 'edit' ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+      })
+      .then(function (data) {
+        dirty = false;
+        clearDraft();
+        // Retour à la liste, sur la pièce : c'est elle qui dit « Enregistré, mise en ligne… »
+        window.location.assign('/admin/?saved=' + encodeURIComponent(data.product.id) + '&deploys=' + (data.deploys ? '1' : '0'));
+      })
+      .catch(function (err) {
+        setSaving(false);
+        if (err instanceof admin.SessionExpired) return reconnect();
+        var message = err instanceof admin.ApiError ? err.message : 'Connexion impossible. Vérifiez votre réseau, puis réessayez : rien n\'a été perdu.';
+        // Une référence refusée par l'API (une autre pièce l'a prise entre-temps) se montre sur son champ
+        if (err instanceof admin.ApiError && /^La référence /.test(message)) setFieldError(els.reference, els.referenceError, message);
+        els.failureText.textContent = message;
+        show(els.failure);
+        els.failure.scrollIntoView({ block: 'nearest' });
+      });
+  }
+
+  /* ── Supprimer un brouillon ── */
+
   els.deleteButton.addEventListener('click', function () {
+    if (saving) return;
     openConfirm({ title: 'Supprimer ce brouillon ?', text: 'La pièce et ses photos disparaissent de l\'espace de gestion. Elle n\'a jamais été publiée.', ok: 'Supprimer' }, function () {
-      showToast('Maquette : la suppression arrive à l\'étape suivante.');
+      setSaving(true, 'Suppression en cours…');
+      admin.api(API + '/' + encodeURIComponent(existing.id), { method: 'DELETE' })
+        .then(function () {
+          dirty = false;
+          clearDraft();
+          window.location.assign('/admin/?deleted=' + encodeURIComponent(existing.name));
+        })
+        .catch(function (err) {
+          setSaving(false);
+          if (err instanceof admin.SessionExpired) return reconnect();
+          els.failureText.textContent = err instanceof admin.ApiError ? err.message : 'Connexion impossible. Vérifiez votre réseau, puis réessayez.';
+          show(els.failure);
+          els.failure.scrollIntoView({ block: 'nearest' });
+        });
     });
   });
+
+  /* ── La fiche mise de côté quand la session expire ── */
+
+  function stashDraft() {
+    if (!dirty) return;
+    var piece = candidate();
+    delete piece.images;
+    piece.availability = targetState();
+    piece.photosLost = photos.some(function (photo) { return !photo.src; });
+    try { window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(piece)); } catch (_) { /* stockage indisponible : tant pis */ }
+  }
+
+  function restoreDraft() {
+    var raw = null;
+    try { raw = window.sessionStorage.getItem(DRAFT_KEY); } catch (_) { return; }
+    if (!raw) return;
+    clearDraft();
+    var piece;
+    try { piece = JSON.parse(raw); } catch (_) { return; }
+    els.name.value = piece.name || '';
+    els.reference.value = piece.reference || '';
+    check(els.collections, 'collections', piece.collections || []);
+    check(els.audience, 'audience', piece.audience ? [piece.audience] : []);
+    check(els.category, 'category', piece.category ? [piece.category] : []);
+    els.desc.value = piece.desc || '';
+    els.price.value = typeof piece.price === 'number' ? String(piece.price).replace('.', ',') : '';
+    els.featured.checked = piece.featured === true;
+    if (piece.availability) { check(els.publish, 'availability', [piece.availability]); userChoseState = true; }
+    dirty = true;
+    autosize(els.desc);
+    updatePublish();
+    showToast(piece.photosLost ? 'Votre saisie a été retrouvée après la reconnexion — sauf les photos ajoutées, à reprendre.' : 'Votre saisie a été retrouvée après la reconnexion.');
+  }
+
+  function clearDraft() {
+    try { window.sessionStorage.removeItem(DRAFT_KEY); } catch (_) { /* idem */ }
+  }
 
   /* ── Démarrage ── */
 
