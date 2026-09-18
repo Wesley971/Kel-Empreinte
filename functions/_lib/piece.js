@@ -27,7 +27,7 @@ import catalog from '../../catalog.js';
 import { json, error } from './http.js';
 import { GitHubError, branchHead, readRepoFile, commitFiles } from './github.js';
 import { PRODUCTS_FILE, parseProducts, serializeProducts } from './products.js';
-import { nextPhotoPath, ownedPhotoPattern } from './photos.js';
+import { MAX_PHOTOS, nextPhotoPath, ownedPhotoPattern } from './photos.js';
 
 const COLLECTIONS_FILE = 'data/collections.json';
 
@@ -176,6 +176,8 @@ export async function savePiece(env, { id, piece, uploads }) {
         images.push({ src, alt: null });
       }
     }
+
+    if (images.length > MAX_PHOTOS) return error(422, 'Au plus ' + MAX_PHOTOS + ' photos par pièce, celles déjà en place comprises.');
 
     // La pièce telle que le fichier l'attend
     const candidate = assemble(previous, pieceId, piece, images, state.value, now);
