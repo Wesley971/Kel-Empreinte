@@ -1,0 +1,16 @@
+{
+  "methods": [
+    {
+      "id": "lettre-suivie",
+      "label": "Lettre suivie",
+      "price": 3.9,
+      "standard": true,
+      "freeFrom": 30
+    },
+    {
+      "id": "colissimo",
+      "label": "Colissimo",
+      "price": 5.9
+    }
+  ]
+}

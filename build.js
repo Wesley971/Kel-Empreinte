@@ -34,6 +34,7 @@ var ROOT = __dirname;
 var PRODUCTS_FILE = path.join(ROOT, 'data', 'products.json');
 var COLLECTIONS_FILE = path.join(ROOT, 'data', 'collections.json');
 var SITE_FILE = path.join(ROOT, 'data', 'site.json');
+var SHIPPING_FILE = path.join(ROOT, 'data', 'shipping.json');
 var INDEX_FILE = path.join(ROOT, 'index.html');
 var NOT_FOUND_FILE = path.join(ROOT, '404.html');
 var BUILD_INFO_FILE = path.join(ROOT, 'functions', '_lib', 'build-info.js');
@@ -303,6 +304,35 @@ function readSite() {
   });
 
   return site;
+}
+
+/* Les tarifs d'envoi : la seule source (KD-99). La Poste change ses prix chaque année, alors aucun
+   montant n'est écrit dans une page — la FAQ est générée d'ici, et KD-64 y lira les frais du panier.
+   Un seul mode est « standard » : c'est lui que la rétractation rembourse (art. L221-24), et le seul
+   qui peut être offert à partir d'un montant (freeFrom). */
+function readShipping() {
+  var shipping = readJson(SHIPPING_FILE, 'data/shipping.json');
+  if (!shipping || typeof shipping !== 'object' || Array.isArray(shipping)) fail('data/shipping.json doit contenir un objet');
+  if (!Array.isArray(shipping.methods) || !shipping.methods.length) fail('data/shipping.json : « methods » doit être un tableau d\'au moins un mode d\'envoi');
+
+  var ids = {}, standards = 0;
+  shipping.methods.forEach(function(method, index) {
+    var where = 'data/shipping.json : mode n° ' + (index + 1);
+    if (!method || typeof method !== 'object' || Array.isArray(method)) fail(where + ' doit être un objet');
+    if (typeof method.id !== 'string' || !ID_PATTERN.test(method.id)) fail(where + ' : « id » doit être un slug (lettres minuscules, chiffres, tirets)');
+    if (ids[method.id]) fail('data/shipping.json : « id » en double : ' + method.id);
+    ids[method.id] = true;
+    where = 'data/shipping.json : « ' + method.id + ' »';
+    if (typeof method.label !== 'string' || !method.label.trim()) fail(where + ' : « label » doit être une chaîne non vide');
+    if (typeof method.price !== 'number' || !(method.price >= 0)) fail(where + ' : « price » doit être un nombre positif ou nul (3.9, pas « 3,90 »)');
+    if (method.standard !== undefined && method.standard !== true) fail(where + ' : « standard » ne peut valoir que true, ou être absent');
+    if (method.freeFrom !== undefined && (typeof method.freeFrom !== 'number' || !(method.freeFrom > 0))) fail(where + ' : « freeFrom » doit être un nombre strictement positif, ou absent');
+    if (method.freeFrom !== undefined && !method.standard) fail(where + ' : seul le mode standard peut être offert (« freeFrom »)');
+    if (method.standard) standards += 1;
+  });
+  if (standards !== 1) fail('data/shipping.json : exactement un mode doit porter « standard: true » (trouvé ' + standards + ')');
+
+  return shipping;
 }
 
 function readCatalog() {
@@ -803,6 +833,7 @@ function resetShopDir() {
 /* ── Programme ── */
 
 var site = readSite();
+var shipping = readShipping();
 var data = readCatalog();
 // Validé tel qu'écrit, rendu tel que réglé : une réservation échue à l'instant du build est une
 // pièce disponible pour toutes les pages (le fichier n'est pas touché ; l'écran de gestion, lui,
