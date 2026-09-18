@@ -78,6 +78,7 @@ body {
 }
 
 .kel-header-nav { margin-left: auto; font-size: 14px; white-space: nowrap; }
+.kel-add { display: block; width: 100%; margin: 0 0 16px; }
 .kel-header-nav a { color: var(--ink); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
 
 /* ── Statut global : discret, sous l'en-tête, visible pendant un enregistrement ── */
@@ -105,6 +106,32 @@ body {
 @keyframes kel-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
+}
+
+/* « Copier une pièce existante » : le bandeau qui dit quoi faire, sous l'en-tête */
+.kel-pick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 10px 16px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--oat);
+  background: var(--terra);
+}
+.kel-pick span { flex: 1 1 auto; }
+.kel-pick-cancel {
+  min-height: 36px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--oat);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 18px;
+  cursor: pointer;
 }
 
 /* ── Contenu ── */
@@ -243,6 +270,7 @@ body {
 }
 
 .kel-error p { margin: 0 0 12px; }
+.kel-error p:last-child { margin-bottom: 0; }
 
 .kel-button {
   min-height: 44px;
@@ -364,12 +392,22 @@ body {
 
 /* Le nom est ce qu'on lit d'abord : plus grand, plus gras et plus sombre que tout le reste de la carte */
 .kel-row-name {
+  display: block;
+  margin: 0;
   font-size: 15px;
   line-height: 1.3;
   font-weight: 600;
   color: var(--ink);
+  text-decoration: none;
   overflow-wrap: anywhere;
 }
+/* Le nom est un lien vers la fiche (KD-93) : souligné au survol et au clavier seulement */
+.kel-row-name:hover, .kel-row-name:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
+/* En mode « copier » : toute la ligne dit qu'elle se touche, les boutons d'état s'effacent */
+.kel-picking .kel-row { cursor: pointer; }
+.kel-picking .kel-row-actions { visibility: hidden; }
+/* La pièce qu'on vient d'enregistrer : un halo terre le temps de la repérer */
+.kel-row--saved { box-shadow: 0 0 0 2px var(--terra); }
 
 .kel-row-meta,
 .kel-row-note,
@@ -855,6 +893,7 @@ body {
   border-radius: 16px;
   cursor: pointer;
 }
+.kel-photo-first { white-space: nowrap; }
 .kel-photo-remove { min-width: 32px; padding: 0; font-size: 20px; line-height: 1; }
 .kel-photo:first-child .kel-photo-first { visibility: hidden; }
 .kel-photo-first:focus-visible, .kel-photo-remove:focus-visible { outline: 2px solid var(--oat); outline-offset: 1px; }
