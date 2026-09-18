@@ -29,6 +29,8 @@
 (function () {
   'use strict';
 
+  // L'appel à l'API, la reconnexion, le toast, les feuilles et la confirmation viennent de
+  // common.js (KD-93) : la fiche d'une pièce (piece.js) les partage.
   var API = '/api/admin/products';
   var catalog = window.KelCatalog;
 
@@ -85,61 +87,36 @@
   var rowErrors = {};  // id → raison du dernier refus : un rendu complet (une frappe) ne l'efface pas
   var query = '';      // la recherche en cours, telle que tapée
   var pending = 0;     // écritures en vol : le statut global reste allumé tant qu'il y en a
-  var toastTimer = null;
 
   function show(el) { el.hidden = false; }
   function hide(el) { el.hidden = true; }
 
-  function ApiError(status, message) {
-    this.name = 'ApiError';
-    this.status = status;
-    this.message = message;
+  var admin = window.KelAdmin;
+  if (!admin) {
+    hide(els.loading);
+    els.errorText.textContent = 'Le script de l\'espace de gestion n\'a pas pu être chargé. Rechargez la page.';
+    show(els.error);
+    return;
   }
-  ApiError.prototype = Object.create(Error.prototype);
+  var ApiError = admin.ApiError;
+  var SessionExpired = admin.SessionExpired;
+  var api = admin.api;
+  var showToast = admin.createToast(els.toast);
+  var dialogs = admin.createDialogs([els.sheet, els.confirm, els.sale], showToast);
+  var openConfirm = admin.createConfirm({ dialog: els.confirm, title: els.confirmTitle, text: els.confirmText, ok: els.confirmOk }, dialogs);
+  var openDialog = dialogs.open;
+  var closeDialog = dialogs.close;
 
-  function SessionExpired() {
-    this.name = 'SessionExpired';
-    this.message = 'session expirée';
-  }
-  SessionExpired.prototype = Object.create(Error.prototype);
-
-  /* ── Appels à l'API ── */
-
-  // redirect: 'manual' : une session Access expirée répond par une redirection vers la page de
-  // connexion. Suivie, elle finirait en erreur CORS, indiscernable d'une panne réseau. Non
-  // suivie, elle se voit (type opaqueredirect) et on recharge la page : Access redemande le
-  // code et ramène ici. Une réponse qui n'est pas du JSON (page Access, page d'erreur) et un 401
-  // du middleware (jeton refusé) sont traités de la même façon : la session est à refaire.
-  function api(path, init) {
-    init = init || {};
-    var headers = Object.assign({ Accept: 'application/json' }, init.headers || {});
-    return fetch(path, Object.assign({}, init, { headers: headers, redirect: 'manual', credentials: 'same-origin' }))
-      .then(function (response) {
-        if (response.type === 'opaqueredirect' || response.status === 0 || response.status === 401) throw new SessionExpired();
-        var type = response.headers.get('Content-Type') || '';
-        if (type.indexOf('application/json') === -1) throw new SessionExpired();
-        return response.json().then(function (body) {
-          if (!response.ok) throw new ApiError(response.status, body && body.error ? body.error : 'Une erreur est survenue.');
-          return body;
-        });
-      });
-  }
-
-  // Recharge la page pour repasser par Access. Garde-fou : si la page vient déjà d'être
-  // rechargée pour ça, on n'insiste pas — une boucle de rechargements serait pire qu'un message.
+  // Session Access expirée : common.js recharge la page ; si ça vient d'être fait, on l'écrit ici
   function reconnect() {
-    var key = 'kel-gestion-reconnect-at';
-    var last = 0;
-    try { last = Number(window.sessionStorage.getItem(key)) || 0; } catch (_) { /* stockage indisponible */ }
-    if (Date.now() - last < 30000) {
-      hide(els.loading);
-      els.errorText.textContent = 'Impossible de vérifier votre connexion. Fermez cette page et rouvrez-la.';
-      show(els.error);
-      return;
-    }
-    try { window.sessionStorage.setItem(key, String(Date.now())); } catch (_) { /* idem */ }
-    showToast('Votre session a expiré. Reconnexion…');
-    window.setTimeout(function () { window.location.reload(); }, 1500);
+    admin.reconnect({
+      toast: showToast,
+      onBlocked: function (message) {
+        hide(els.loading);
+        els.errorText.textContent = message;
+        show(els.error);
+      }
+    });
   }
 
   /* ── Chargement ── */
@@ -403,25 +380,6 @@
     openDialog(els.sheet, row && row.querySelector('.kel-state'));
   }
 
-  /* ── Confirmation ── */
-
-  var confirmCallback = null;
-
-  function openConfirm(options, onOk) {
-    els.confirmTitle.textContent = options.title;
-    els.confirmText.textContent = options.text;
-    els.confirmOk.textContent = options.ok;
-    confirmCallback = onOk;
-    openDialog(els.confirm);
-  }
-
-  els.confirm.addEventListener('close', function () {
-    var callback = confirmCallback;
-    confirmCallback = null;
-    if (els.confirm.returnValue === 'ok' && callback) callback();
-    els.confirm.returnValue = '';
-  });
-
   /* ── Marquer vendue ── */
 
   var saleProduct = null;
@@ -492,32 +450,6 @@
   });
 
   els.saleCancel.addEventListener('click', function () { closeDialog(els.sale); });
-
-  /* ── Dialogues (feuilles en bas d'écran) ── */
-
-  var returnFocusTo = null;
-
-  function openDialog(dialog, opener) {
-    returnFocusTo = opener || document.activeElement;
-    if (typeof dialog.showModal !== 'function') {
-      showToast('Votre navigateur est trop ancien pour cet écran. Mettez-le à jour.');
-      return;
-    }
-    dialog.showModal();
-  }
-
-  function closeDialog(dialog) {
-    if (dialog.open) dialog.close();
-  }
-
-  [els.sheet, els.confirm, els.sale].forEach(function (dialog) {
-    // Toucher le fond ferme la feuille
-    dialog.addEventListener('click', function (event) { if (event.target === dialog) dialog.close(); });
-    dialog.addEventListener('close', function () {
-      if (returnFocusTo && document.body.contains(returnFocusTo) && typeof returnFocusTo.focus === 'function') returnFocusTo.focus();
-      returnFocusTo = null;
-    });
-  });
 
   /* ── Écriture ── */
 
@@ -593,13 +525,6 @@
   }
 
   /* ── Affichage ── */
-
-  function showToast(message) {
-    els.toast.textContent = message;
-    show(els.toast);
-    window.clearTimeout(toastTimer);
-    toastTimer = window.setTimeout(function () { hide(els.toast); }, 5000);
-  }
 
   // « 12 en vente · 1 réservée · 3 vendues » : les groupes vides ne sont pas cités. Sous filtre :
   // « 2 sur 17 » — le filtre actif et le total restent visibles (des pièces ne « disparaissent »
