@@ -1,0 +1,15 @@
+<!-- Navigation commune à toutes les pages — injectée par build.js dans la région « build:nav » de
+     index.html, templates/boutique.html, templates/piece.html et 404.html. Ce fichier ne porte que
+     la coque ; les entrées sont rendues par renderNav() depuis la liste NAV_ITEMS de build.js.
+     Pour ajouter, renommer, déplacer ou retirer une entrée : NAV_ITEMS, et nulle part ailleurs.
+     Les quatre pages la reprennent au prochain build. -->
+<nav class="pill-nav" aria-label="Navigation principale">
+  <!-- build:nav-pill:start — généré par build.js depuis NAV_ITEMS -->
+  <!-- build:nav-pill:end -->
+</nav>
+
+<button class="hamburger" aria-label="Ouvrir la navigation"><span></span><span></span><span></span></button>
+<nav class="mobile-nav" aria-label="Navigation mobile">
+  <!-- build:nav-mobile:start — généré par build.js depuis NAV_ITEMS -->
+  <!-- build:nav-mobile:end -->
+</nav>

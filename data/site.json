@@ -1,0 +1,22 @@
+{
+  "contact": {
+    "email": "kelempreinte.entreprise@gmail.com",
+    "phone": "+33768728002",
+    "phoneLabel": "07 68 72 80 02",
+    "whatsapp": "https://wa.me/33768728002"
+  },
+  "shops": [
+    {
+      "name": "Instagram",
+      "url": "https://www.instagram.com/kelempreinte/"
+    },
+    {
+      "name": "Etsy",
+      "url": "https://www.etsy.com/fr/shop/KelEmpreinte"
+    },
+    {
+      "name": "Vinted",
+      "url": "https://www.vinted.fr/member/3126469430-kelempreinte"
+    }
+  ]
+}

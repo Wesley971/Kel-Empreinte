@@ -1,0 +1,21 @@
+<!-- Pied de page commun — injecté par build.js dans la région « build:footer » de
+     templates/boutique.html, templates/piece.html et 404.html. L'accueil n'en a pas : sa fin est la
+     section « #signature », qui reçoit les mêmes liens par « build:signature-contact » et
+     « build:signature-links ». Les liens viennent de data/site.json : c'est le seul endroit à
+     modifier pour qu'un pseudo ou un numéro change partout. -->
+<footer class="site-footer">
+  <!-- Logo : la version claire (« Empreinte » en crème) quand l'appareil est en mode sombre — KD-101 -->
+  <picture>
+    <source srcset="/images/logo/logo-kel-empreinte-dark-mode.png" media="(prefers-color-scheme: dark)">
+    <img class="site-footer-logo" src="/images/logo/logo-kel-empreinte.png" alt="Kel'Empreinte" loading="lazy" width="56" height="56">
+  </picture>
+  <p class="site-footer-contact">
+    <!-- build:footer-contact:start — généré par build.js depuis data/site.json -->
+    <!-- build:footer-contact:end -->
+  </p>
+  <p class="site-footer-links">
+    <!-- build:footer-shops:start — généré par build.js depuis data/site.json -->
+    <!-- build:footer-shops:end -->
+  </p>
+  <p class="site-footer-credit">Pièces faites main à Vieux-Condé &middot; Template original par <a href="https://www.tooplate.com" target="_blank" rel="nofollow">Tooplate</a></p>
+</footer>

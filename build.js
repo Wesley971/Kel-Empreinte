@@ -1,7 +1,12 @@
 /* Build du site — vérifie le catalogue et génère les pages depuis data/products.json.
 
-   Trois sorties : les régions de l'accueil (index.html, réécrit en place), la boutique et ses
-   pages pièce (boutique/, dossier généré et ignoré par git, vidé à chaque build) et sitemap.xml.
+   Quatre sorties : les régions de l'accueil (index.html, réécrit en place), celles de 404.html
+   (réécrite en place elle aussi), la boutique et ses pages pièce (boutique/, dossier généré et
+   ignoré par git, vidé à chaque build) et sitemap.xml.
+
+   La navigation et le pied de page ne sont écrits qu'une fois, dans templates/partials/ : build.js
+   les injecte dans les quatre pages (KD-100). Les liens de contact et de boutiques viennent de
+   data/site.json, les entrées de navigation de la liste NAV_ITEMS ci-dessous.
 
    Exécuté par Cloudflare Pages à chaque déploiement (build command : `node build.js`,
    output et root directory laissés vides = racine du dépôt, Node figé par .node-version).
@@ -28,7 +33,9 @@ var catalog = require('./catalog.js');
 var ROOT = __dirname;
 var PRODUCTS_FILE = path.join(ROOT, 'data', 'products.json');
 var COLLECTIONS_FILE = path.join(ROOT, 'data', 'collections.json');
+var SITE_FILE = path.join(ROOT, 'data', 'site.json');
 var INDEX_FILE = path.join(ROOT, 'index.html');
+var NOT_FOUND_FILE = path.join(ROOT, '404.html');
 var BUILD_INFO_FILE = path.join(ROOT, 'functions', '_lib', 'build-info.js');
 
 function fail(message) {
@@ -268,6 +275,36 @@ function validateCollections(collections) {
   return collections.slice().sort(function(a, b) { return (a.order - b.order) || a.name.localeCompare(b.name, 'fr'); });
 }
 
+/* ── data/site.json : ce que Prescilia peut changer elle-même ──
+
+   Uniquement ses coordonnées et ses boutiques : c'est le fichier que l'écran de réglages de KD-79
+   écrira. La navigation n'y est pas — elle n'a pas à pouvoir être écrasée par cet écran. */
+
+function readSite() {
+  var site = readJson(SITE_FILE, 'data/site.json');
+  if (!site || typeof site !== 'object' || Array.isArray(site)) fail('data/site.json doit contenir un objet');
+
+  var contact = site.contact;
+  if (!contact || typeof contact !== 'object' || Array.isArray(contact)) fail('data/site.json : « contact » manquant');
+  ['email', 'phone', 'phoneLabel', 'whatsapp'].forEach(function(key) {
+    if (typeof contact[key] !== 'string' || !contact[key].trim()) {
+      fail('data/site.json : « contact.' + key + ' » doit être une chaîne non vide');
+    }
+  });
+  if (contact.email.indexOf('@') === -1) fail('data/site.json : « contact.email » n\'est pas une adresse');
+  if (contact.phone.charAt(0) !== '+') fail('data/site.json : « contact.phone » doit être au format international (+33…) — c\'est ce qui part dans le lien tel:');
+
+  if (!Array.isArray(site.shops) || !site.shops.length) fail('data/site.json : « shops » doit être un tableau d\'au moins une boutique');
+  site.shops.forEach(function(shop, index) {
+    var where = 'data/site.json : boutique n° ' + (index + 1);
+    if (!shop || typeof shop !== 'object' || Array.isArray(shop)) fail(where + ' doit être un objet');
+    if (typeof shop.name !== 'string' || !shop.name.trim()) fail(where + ' : « name » doit être une chaîne non vide');
+    if (typeof shop.url !== 'string' || !/^https?:\/\//.test(shop.url)) fail(where + ' : « url » doit commencer par http:// ou https://');
+  });
+
+  return site;
+}
+
 function readCatalog() {
   var collections = validateCollections(readJson(COLLECTIONS_FILE, 'data/collections.json'));
   var collectionIds = collections.map(function(c) { return c.id; });
@@ -317,10 +354,22 @@ function eolOf(text) {
 
 var SITE_URL = 'https://kel-empreinte.pages.dev';
 var TEMPLATES_DIR = path.join(ROOT, 'templates');
+var PARTIALS_DIR = path.join(TEMPLATES_DIR, 'partials');
 var SHOP_DIR = path.join(ROOT, 'boutique');
 var SITEMAP_FILE = path.join(ROOT, 'sitemap.xml');
 
 var esc = catalog.escapeHtml;
+
+// Une page versionnée, réécrite en place entre ses marqueurs : index.html et 404.html.
+function readPage(file, label) {
+  var text;
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch (err) {
+    fail('impossible de lire ' + label + ' (' + err.message + ')');
+  }
+  return { name: label, text: text, eol: eolOf(text) };
+}
 
 function readTemplate(name) {
   var file = path.join(TEMPLATES_DIR, name);
@@ -331,6 +380,24 @@ function readTemplate(name) {
     fail('impossible de lire le gabarit templates/' + name + ' (' + err.message + ')');
   }
   return { name: 'templates/' + name, text: text, eol: eolOf(text) };
+}
+
+// Un partiel est injecté dans des pages qui n'ont pas forcément ses fins de ligne : on le ramène
+// en LF à la lecture, et replaceRegion le convertit ensuite à celles de la page cible. Sans ça un
+// partiel en CRLF injecté dans un fichier LF sèmerait des \r orphelins, invisibles à la relecture.
+// Le commentaire de tête du fichier explique le partiel à qui l'ouvre : il n'est pas injecté,
+// sinon il se retrouverait dans le source des vingt pages générées.
+function readPartial(name) {
+  var file = path.join(PARTIALS_DIR, name);
+  var text;
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch (err) {
+    fail('impossible de lire le partiel templates/partials/' + name + ' (' + err.message + ')');
+  }
+  text = text.replace(/\r\n/g, '\n').replace(/^\s*<!--[\s\S]*?-->\s*/, '').replace(/\s+$/, '');
+  if (!text) fail('le partiel templates/partials/' + name + ' est vide');
+  return { name: 'templates/partials/' + name, text: text, eol: '\n' };
 }
 
 // Remplit une région d'un gabarit et renvoie le gabarit mis à jour (les appels s'enchaînent).
@@ -353,6 +420,113 @@ function jsonForHtml(value) {
 
 function pluralize(count, singular, plural) {
   return count + '\u00a0' + (count > 1 ? plural : singular);
+}
+
+/* ── Navigation et pied de page communs (KD-100) ──
+
+   Écrits une seule fois : la coque dans templates/partials/, les entrées ici, les liens dans
+   data/site.json. Les quatre pages (accueil, boutique, pièce, 404) les reçoivent au build. */
+
+// Les entrées de la navigation, dans l'ordre d'affichage. Pour en ajouter une, la renommer, la
+// déplacer ou la retirer : ici, et nulle part ailleurs.
+//   href     : ancre de l'accueil (« #… ») ou chemin absolu
+//   awayHref : adresse à utiliser hors accueil quand elle ne se déduit pas de href
+//   homeOnly : entrée réservée à l'accueil — la pilule est plus courte sur les autres pages
+// KD-75 : « Commander » mène à une section qui décrit encore le parcours par devis, faux depuis le
+// pivot. Retirer ou renommer cette entrée se fait sur cette ligne, sans toucher aux pages.
+var NAV_ITEMS = [
+  { label: 'Accueil', href: '#hero', awayHref: '/' },
+  { label: 'Boutique', href: '/boutique/' },
+  { label: 'À la une', href: '#pieces', homeOnly: true },
+  { label: 'Savoir-faire', href: '#process' },
+  { label: 'Commander', href: '#commander', homeOnly: true },
+  { label: 'L\'atelier', href: '#video' },
+  { label: 'Avis', href: '#avis', homeOnly: true },
+  { label: 'FAQ', href: '#faq' },
+  { label: 'Contact', href: '#signature' }
+];
+
+// L'entrée marquée « active » est désignée par son adresse, jamais par son libellé : renommer une
+// entrée ne doit pas éteindre silencieusement la mise en évidence.
+var NAV_VARIANTS = {
+  home: { away: false, active: '#hero' },        // index.html : toutes les entrées, ancres locales
+  shop: { away: true, active: '/boutique/' },    // boutique et pages pièce
+  plain: { away: true, active: null }            // 404.html : aucune page courante à désigner
+};
+
+function navHref(item, variant) {
+  if (!variant.away) return item.href;
+  if (item.awayHref) return item.awayHref;
+  return item.href.charAt(0) === '#' ? '/' + item.href : item.href;
+}
+
+function navItemsFor(variant) {
+  return NAV_ITEMS.filter(function(item) { return variant.away ? !item.homeOnly : true; });
+}
+
+// La pilule porte data-text (effet de survol) et la classe active ; le menu mobile est un simple
+// empilement de liens, sans état actif — c'est le balisage existant, repris tel quel.
+function renderNav(partial, variantName) {
+  var variant = NAV_VARIANTS[variantName];
+  if (!variant) fail('variante de navigation inconnue : ' + variantName);
+  var items = navItemsFor(variant);
+
+  var pill = items.map(function(item) {
+    var href = navHref(item, variant);
+    var active = variant.active && href === variant.active ? ' class="active"' : '';
+    return '<a href="' + esc(href) + '"' + active + ' data-text="' + esc(item.label) + '"><span>' + esc(item.label) + '</span></a>';
+  });
+  var mobile = items.map(function(item) {
+    return '<a href="' + esc(navHref(item, variant)) + '">' + esc(item.label) + '</a>';
+  });
+
+  var text = replaceRegion(partial.text, 'nav-pill', indentLines(pill.join('\n'), '  '), partial.eol, partial.name);
+  return replaceRegion(text, 'nav-mobile', indentLines(mobile.join('\n'), '  '), partial.eol, partial.name);
+}
+
+function contactLinks(site, indent) {
+  var contact = site.contact;
+  return [
+    indent + '<a href="mailto:' + esc(contact.email) + '">' + esc(contact.email) + '</a>',
+    indent + '<span aria-hidden="true">\u00b7</span>',
+    indent + '<a href="tel:' + esc(contact.phone) + '">' + esc(contact.phoneLabel) + '</a>',
+    indent + '<span aria-hidden="true">\u00b7</span>',
+    indent + '<a href="' + esc(contact.whatsapp) + '" target="_blank" rel="noopener noreferrer">WhatsApp</a>'
+  ].join('\n');
+}
+
+function shopLinks(site, indent) {
+  return site.shops.map(function(shop) {
+    return indent + '<a href="' + esc(shop.url) + '" class="cta-link" target="_blank" rel="noopener noreferrer">' + esc(shop.name) + '</a>';
+  }).join('\n');
+}
+
+function renderFooter(partial, site) {
+  var text = replaceRegion(partial.text, 'footer-contact', contactLinks(site, '    '), partial.eol, partial.name);
+  return replaceRegion(text, 'footer-shops', shopLinks(site, '    '), partial.eol, partial.name);
+}
+
+// Remplit une région dont le contenu ne peut pas être vide — navigation, pied de page,
+// coordonnées. Contrairement à `fill`, un bloc vide fait échouer le build (replaceRegion) au lieu
+// de devenir « aucune pièce » : une nav absente est une erreur de génération, pas un état du
+// catalogue.
+function put(page, name, content) {
+  return { name: page.name, text: replaceRegion(page.text, name, content, page.eol, page.name), eol: page.eol };
+}
+
+// Injecte la navigation, et le pied de page quand la page en a un (l'accueil n'en a pas).
+function withCommon(page, nav, footer) {
+  page = put(page, 'nav', nav);
+  return footer ? put(page, 'footer', footer) : page;
+}
+
+// L'accueil n'a pas de <footer> : ses coordonnées vivent dans la section « #signature », avec un
+// balisage à elle. Mêmes données, autre habillage.
+function renderSignatureContact(site, indent) {
+  var contact = site.contact;
+  return indent + '<a href="mailto:' + esc(contact.email) + '" class="signature-email">' + esc(contact.email) + '</a>\n' +
+    indent + '<div class="signature-phone"><a href="tel:' + esc(contact.phone) + '">' + esc(contact.phoneLabel) + '</a> ' +
+    '<span aria-hidden="true">\u00b7</span> <a href="' + esc(contact.whatsapp) + '" target="_blank" rel="noopener noreferrer">WhatsApp</a></div>';
 }
 
 /* Boutique */
@@ -628,6 +802,7 @@ function resetShopDir() {
 
 /* ── Programme ── */
 
+var site = readSite();
 var data = readCatalog();
 // Validé tel qu'écrit, rendu tel que réglé : une réservation échue à l'instant du build est une
 // pièce disponible pour toutes les pages (le fichier n'est pas touché ; l'écran de gestion, lui,
@@ -637,29 +812,36 @@ var settledCount = products.filter(function(product, i) { return product !== dat
 var collections = data.collections;
 var shown = catalog.sortForShop(products);
 
-var indexHtml;
-try {
-  indexHtml = fs.readFileSync(INDEX_FILE, 'utf8');
-} catch (err) {
-  fail('impossible de lire index.html (' + err.message + ')');
-}
-var indexEol = eolOf(indexHtml);
+var indexHtml = readPage(INDEX_FILE, 'index.html');
+var notFoundHtml = readPage(NOT_FOUND_FILE, '404.html');
 
 // Tout est rendu en mémoire avant la première écriture : un échec ne laisse rien à moitié généré.
 
-var indexPage = { name: 'index.html', text: indexHtml, eol: indexEol };
+var navPartial = readPartial('nav.html');
+var footerPartial = readPartial('footer.html');
+var navHome = renderNav(navPartial, 'home');
+var navShop = renderNav(navPartial, 'shop');
+var navPlain = renderNav(navPartial, 'plain');
+var footer = renderFooter(footerPartial, site);
+
+var indexPage = withCommon(indexHtml, navHome, null);
+indexPage = put(indexPage, 'signature-contact', renderSignatureContact(site, '      '));
+indexPage = put(indexPage, 'signature-links', shopLinks(site, '        '));
 indexPage = fill(indexPage, 'home-featured', renderHomeFeatured(products, '    '), '    ');
 indexPage = fill(indexPage, 'home-collections', renderHomeCollections(products, collections, '    '), '    ');
 var indexOutput = indexPage.text;
 
-var shopPage = renderShopPage(readTemplate('boutique.html'), shown, collections);
-var pieceTemplate = readTemplate('piece.html');
+var notFoundOutput = withCommon(notFoundHtml, navPlain, footer).text;
+
+var shopPage = renderShopPage(withCommon(readTemplate('boutique.html'), navShop, footer), shown, collections);
+var pieceTemplate = withCommon(readTemplate('piece.html'), navShop, footer);
 var piecePages = shown.map(function(product) {
   return { file: path.join(SHOP_DIR, product.id, 'index.html'), html: renderPiecePage(pieceTemplate, product, collections) };
 });
 var sitemap = renderSitemap(shown);
 
-if (indexOutput !== indexHtml) fs.writeFileSync(INDEX_FILE, indexOutput, 'utf8');
+if (indexOutput !== indexHtml.text) fs.writeFileSync(INDEX_FILE, indexOutput, 'utf8');
+if (notFoundOutput !== notFoundHtml.text) fs.writeFileSync(NOT_FOUND_FILE, notFoundOutput, 'utf8');
 resetShopDir();
 writeFile(path.join(SHOP_DIR, 'index.html'), shopPage);
 piecePages.forEach(function(page) { writeFile(page.file, page.html); });
@@ -671,7 +853,9 @@ console.log('build.js : catalogue — ' + products.length + ' pièces (' +
   catalog.AVAILABILITIES.filter(function(s) { return counts[s]; }).map(function(s) { return counts[s] + ' ' + s; }).join(', ') + ')' +
   (settledCount ? ', dont ' + settledCount + ' réservation(s) échue(s) rendue(s) disponible(s) — ' + catalog.todayInParis(BUILD_TIME) + ' à Paris' : ''));
 console.log('build.js : pages — accueil (' + catalog.featuredPieces(products, HOME_FEATURED_FALLBACK).length + ' pièces en avant), boutique/index.html + ' +
-  piecePages.length + ' pages pièce, sitemap.xml (' + (shown.length + 2) + ' URL)' + (indexOutput === indexHtml ? ', index.html déjà à jour' : ', index.html mis à jour'));
+  piecePages.length + ' pages pièce, sitemap.xml (' + (shown.length + 2) + ' URL)' +
+  (indexOutput === indexHtml.text ? ', index.html déjà à jour' : ', index.html mis à jour') +
+  (notFoundOutput === notFoundHtml.text ? ', 404.html déjà à jour' : ', 404.html mis à jour'));
 
 /* ── Branche du déploiement, pour les Functions ── */
 
