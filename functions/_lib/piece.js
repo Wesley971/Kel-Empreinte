@@ -11,8 +11,8 @@
    3. la règle complète du modèle, `catalog.validateProduct` — celle de build.js, aux mêmes
       messages : l'API n'écrit jamais un fichier que le build refuserait ;
    4. un seul commit (commitFiles) : les nouvelles photos, data/products.json, les photos
-      retirées. `[CI Skip]` dans le message d'un brouillon : rien à mettre en ligne, et
-      Cloudflare Pages n'a qu'un build à la fois.
+      retirées. Le marqueur PAGES_SKIP dans le message d'un brouillon : rien à mettre en ligne,
+      et Cloudflare Pages n'a qu'un build à la fois.
 
    Tout ce qui dépend de la liste (id libre, référence libre, pièce existante, état) se juge
    sur une lecture faite AU commit de tête ; si la branche avance entre cette lecture et
@@ -34,6 +34,14 @@ const COLLECTIONS_FILE = 'data/collections.json';
 // Ce que le formulaire envoie dans `piece` ; tout autre champ est refusé
 const PIECE_FIELDS = ['name', 'reference', 'category', 'audience', 'collections', 'desc', 'price', 'featured', 'images', 'availability'];
 const NEW_STATES = ['disponible', 'brouillon'];
+
+// Le marqueur qui dit à Cloudflare Pages de ne pas déployer le commit d'un brouillon (un brouillon
+// n'est nulle part sur le site ; Pages n'a qu'un build à la fois, KD-72). Parmi les cinq formes
+// que Pages reconnaît, celle-ci et elle seule : les autres (« [CI Skip] »…) sont aussi lues par
+// GitHub Actions, qui sauterait alors le garde-fou du catalogue (.github/workflows/catalog-guard.yml)
+// sur chaque brouillon. Pages lit le message ENTIER, corps compris : un commit de code qui cite
+// ce marqueur n'est pas déployé non plus — githooks/commit-msg le refuse (KD-93, 18/09/2026).
+const PAGES_SKIP = '[CF-Pages-Skip]';
 
 const isBlank = (value) => value === undefined || value === null;
 const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -244,7 +252,7 @@ export async function deleteDraft(env, id) {
 
     try {
       const { commit } = await commitFiles(env, {
-        message: 'content(catalog): delete draft "' + product.name + '" [CI Skip]\n\nBrouillon supprimé via l\'espace de gestion, jamais publié.',
+        message: 'content(catalog): delete draft "' + product.name + '" ' + PAGES_SKIP + '\n\nBrouillon supprimé via l\'espace de gestion, jamais publié.',
         parent: head,
         files,
       });
@@ -344,10 +352,10 @@ function parseCollectionIds(content) {
 }
 
 // Sujet en anglais comme le reste de l'historique ; le corps dit d'où vient la modification.
-// [CI Skip] pour un brouillon : Cloudflare Pages ne lance pas de build.
+// Un brouillon porte PAGES_SKIP : Cloudflare Pages ne lance pas de build.
 function commitMessage(product, previous, uploaded, draft) {
   const photos = uploaded ? ', ' + uploaded + ' photo' + (uploaded > 1 ? 's' : '') + ' ajoutée' + (uploaded > 1 ? 's' : '') : '';
-  const skip = draft ? ' [CI Skip]' : '';
+  const skip = draft ? ' ' + PAGES_SKIP : '';
   if (!previous) {
     return 'content(catalog): add "' + product.name + '"' + skip + '\n\n' +
       'Pièce ajoutée via l\'espace de gestion (' + product.availability + photos + ').';

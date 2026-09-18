@@ -1,0 +1,22 @@
+#!/bin/sh
+# Refuse un message de commit qui porte un marqueur « ne pas déployer » — ceux que Cloudflare Pages
+# et GitHub Actions reconnaissent n'importe où dans le message, corps compris.
+#
+# Pourquoi : l'espace de gestion écrit ce marqueur dans les commits de brouillon (functions/_lib/
+# piece.js), pour que rien ne se déploie. Un commit de CODE qui le cite, même dans une phrase
+# (« le commit du brouillon porte [CF-Pages-Skip] »), n'est pas déployé non plus : Cloudflare l'a
+# marqué « skipped » sur KD-93, le 18/09/2026. Ici on l'écrit « le marqueur de non-déploiement ».
+#
+# Activer une fois par clone :  git config core.hooksPath githooks
+# Les commits de l'espace de gestion passent par l'API GitHub, pas par ce hook.
+
+message=$(sed -e '/^#/d' "$1")
+
+# Les cinq formes de Cloudflare Pages, les quatre de GitHub Actions ; sans tenir compte de la casse
+if printf '%s' "$message" | grep -iqE '\[(ci[ -]skip|skip[ -]ci|cf-pages-skip|no ci|skip actions|actions skip)\]'; then
+  echo "commit-msg : le message contient un marqueur de non-déploiement (Cloudflare Pages ou GitHub Actions)." >&2
+  echo "             Un commit de code qui le porte, même entre guillemets, ne serait pas déployé." >&2
+  echo "             Écrivez « le marqueur de non-déploiement » à la place." >&2
+  exit 1
+fi
+exit 0

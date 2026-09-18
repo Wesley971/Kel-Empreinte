@@ -5,7 +5,7 @@
    ({ piece, photos }) et réécrit la fiche entière ; l'état ne s'y change pas
    (sauf brouillon → en vente), `reservedUntil`, `sale`, `createdAt` et `id` sont préservés.
    DELETE ne s'applique qu'à un brouillon jamais publié : la pièce et ses photos disparaissent,
-   commit [CI Skip]. Règles et réponses : functions/_lib/piece.js.
+   commit marqué « ne pas déployer ». Règles et réponses : functions/_lib/piece.js.
 
    PATCH — changer l'état. Corps attendu : { "availability": <état>, "sale"?: { amount, channel,
    date } } et rien d'autre. C'est l'écran « Mes bijoux » (KD-92, KD-98), pas l'éditeur de fiche.

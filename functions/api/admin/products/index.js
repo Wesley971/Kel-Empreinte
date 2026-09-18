@@ -14,7 +14,7 @@
    et les photos ajoutées déjà en base64 (`photos["photo-1"]`, …). Voir functions/_lib/piece.js
    pour les règles et functions/_lib/photos.js pour les photos. Réponses :
    - 200 { product, commit, deploys } : écrit — `deploys` dit si un déploiement suit (false
-                                       pour un brouillon : commit [CI Skip])
+                                       pour un brouillon : commit marqué « ne pas déployer »)
    - 400 requête illisible, champ inattendu, photo citée sans contenu ou contenu sans photo
    - 413 photo trop lourde · 415 format de photo inconnu
    - 422 ce que Prescilia doit corriger, en une phrase (nom, référence déjà portée, mise en
