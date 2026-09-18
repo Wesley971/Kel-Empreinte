@@ -22,19 +22,20 @@ encore là : les pages renvoient vers WhatsApp.
 | `shop.css` | composants du site marchand : carte d'une pièce, puces de filtre, grille, page pièce, bandes de collections, pied de page, 404 |
 | `site.js` | navigation, menu mobile, verrou de scroll, lightbox — partagé par toutes les pages |
 | `shop.js` | boutique (filtres, état dans l'URL) et page pièce (galerie) |
-| `catalog.js` | tout ce qui touche à une pièce, écrit une fois et partagé par le navigateur, le build, l'espace de gestion et les Functions : vocabulaire (états, types, publics, canaux, options de personnalisation), règle « peut passer en vente », ordres d'affichage, prix et promotion, référence, liens WhatsApp, rendu des cartes |
+| `catalog.js` | tout ce qui touche à une pièce, écrit une fois et partagé par le navigateur, le build, l'espace de gestion et les Functions : vocabulaire (états, types, publics, canaux, options de personnalisation), règle « peut passer en vente », **validation du modèle** (`validateProduct`, la règle que le formulaire, l'API et le build appliquent avec les mêmes messages), ordres d'affichage, prix et promotion, référence (unicité normalisée, propriétaire), identifiant d'une nouvelle pièce (`makeId`), `alt` des photos, liens WhatsApp, rendu des cartes |
 | `build.js` | script de build : valide le catalogue (modèle v2, voir *Modèle*), génère l'accueil, la boutique, les pages pièce et le plan du site ; échoue si les données sont incohérentes |
 | `check-site.js` | sonde : compare le site en ligne au dépôt (voir *Surveillance*) |
 | `check-catalog-drop.js` | garde-fou : repère une chute anormale du nombre de pièces dans un push |
 | `.github/workflows/` | planification des deux contrôles ci-dessus (GitHub Actions) |
 | `data/products.json` | **source de vérité du catalogue**, modifiée par l'espace de gestion (`/admin/`) via les Functions, un commit par modification (voir *Modèle*) |
-| `data/collections.json` | les collections nommées (`id`, `name`, `order`, `tagline`, `cover`) : une bande par collection sur l'accueil, dans cet ordre. « Nouveautés » n'y est pas : elle est automatique (les 8 dernières pièces en vente) |
+| `data/collections.json` | les collections nommées (`id`, `name`, `order`, `tagline`, `cover`, `category` = le type que la collection suggère au formulaire, facultatif) : une bande par collection sur l'accueil, dans cet ordre — une collection sans pièce n'a pas de bande. Ce sont les collections du catalogue WhatsApp Business de Prescilia (KD-93). « Nouveautés » n'y est pas : elle est automatique (les 8 dernières pièces en vente) |
 | `data/site.json` | les coordonnées (`contact` : `email`, `phone` au format international, `phoneLabel`, `whatsapp`) et les boutiques (`shops` : `name`, `url`). **Seule source** de ces liens : pied de page des quatre pages, section « Contact » de l'accueil, intro de la boutique, réponse « personnaliser » de la FAQ, messages de catalogue vide et liens WhatsApp des cartes et pages pièce (`catalog.js` reçoit le lien par `configure()`, il n'écrit jamais le numéro). Ne contient pas la navigation — c'est le fichier que l'écran de réglages de KD-79 écrira |
 | `data/shipping.json` | les modes d'envoi (`methods` : `id`, `label`, `price`, un seul `standard: true`, `freeFrom` = montant à partir duquel le mode standard est offert). **Seule source des tarifs** : la réponse « paiement et livraison » de la FAQ est générée d'ici, et le panier (KD-64) y lira les frais. La Poste change ses prix chaque année : on modifie ce fichier, jamais une page |
-| `admin/` | l'espace de gestion, derrière Cloudflare Access (voir *Espace de gestion*). `index.html` + `gestion.css` + `gestion.js` = l'écran « Mes bijoux » (les fichiers nomment l'espace, pas le chemin) ; `manifest.webmanifest` + `icon-*.png` = nom « Mes bijoux » et icône opaque (fond crème) du raccourci « écran d'accueil » de Prescilia (KD-66), `start_url` et `scope` `/admin/` ; `guide.html` = **ancien** guide « Gérer mes bijoux », écrit pour Sveltia, remplacé par KD-104 |
-| `images/` | photos des pièces (KD-93 y écrira depuis l'espace de gestion). `images/logo/` : le logo en 200 px, en deux versions — `logo-kel-empreinte.png` (« Empreinte » en encre, appareil clair) et `logo-kel-empreinte-dark-mode.png` (« Empreinte » en crème, appareil sombre) — et l'image de partage `og-image-kel-empreinte.png`. Les sources haute résolution ne sont pas dans le dépôt |
+| `admin/` | l'espace de gestion, derrière Cloudflare Access (voir *Espace de gestion*). `index.html` + `gestion.js` = l'écran « Mes bijoux » ; `piece.html` + `piece.js` = la fiche d'une pièce (`/admin/piece`, KD-93) ; `common.js` = ce que les deux écrans partagent (appel à l'API, reconnexion, toast, feuilles, confirmation) ; `gestion.css` = les styles des deux (les fichiers nomment l'espace, pas le chemin) ; `manifest.webmanifest` + `icon-*.png` = nom « Mes bijoux » et icône opaque (fond crème) du raccourci « écran d'accueil » de Prescilia (KD-66), `start_url` et `scope` `/admin/` ; `guide.html` = **ancien** guide « Gérer mes bijoux », écrit pour Sveltia, remplacé par KD-104 |
+| `images/` | photos des pièces. Celles ajoutées depuis l'espace de gestion s'appellent `images/<id>-<n>.webp` (ou `.jpg`) : la pièce les possède par leur nom, l'API ne supprime jamais un fichier nommé autrement (voir *La fiche d'une pièce*). `images/logo/` : le logo en 200 px, en deux versions — `logo-kel-empreinte.png` (« Empreinte » en encre, appareil clair) et `logo-kel-empreinte-dark-mode.png` (« Empreinte » en crème, appareil sombre) — et l'image de partage `og-image-kel-empreinte.png`. Les sources haute résolution ne sont pas dans le dépôt |
 | `favicon.svg` | favicon qui embarque les deux logos et affiche celui du réglage de l'appareil (Chrome, Firefox) ; Safari ignore les favicons SVG et garde le PNG déclaré avant lui |
-| `functions/` | Cloudflare Pages Functions : les routes `/api/*` (voir *Fonctions serverless*). `_lib/` = modules partagés (réponses JSON, accès GitHub, catalogue — lecture / réécriture fidèle de `products.json`, vérification du jeton Cloudflare Access, `build-info.js` = branche du déploiement, réécrit par `build.js` sur Pages) ; `api/` = les routes, une par fichier |
+| `functions/` | Cloudflare Pages Functions : les routes `/api/*` (voir *Fonctions serverless*). `_lib/` = modules partagés (réponses JSON, accès GitHub — un fichier texte par l'API Contents, ou plusieurs fichiers en un commit par l'API Git Data —, catalogue — lecture / réécriture fidèle de `products.json` —, `piece.js` = enregistrer ou supprimer une pièce depuis le formulaire, `photos.js` = les photos reçues, vérification du jeton Cloudflare Access, `build-info.js` = branche et commit du déploiement, réécrit par `build.js` sur Pages) ; `api/` = les routes, une par fichier |
+| `githooks/` | `commit-msg` : refuse un message de commit qui cite un marqueur « ne pas déployer » (voir *La fiche d'une pièce*). À activer une fois par clone : `git config core.hooksPath githooks` |
 | `.node-version` | version de Node utilisée par le build Cloudflare |
 
 ## Déploiement — Cloudflare Pages
@@ -118,6 +119,14 @@ collection inconnue, photo sans description ou fichier introuvable, marqueur abs
 catalogue sans pièce visible **n'est pas une erreur** : les pages le disent. Le catalogue est validé
 tel qu'écrit puis rendu tel que **réglé** à l'instant du build : une réservation échue est rendue
 disponible (voir *Réservation*), et le journal le dit.
+
+La règle du modèle vit dans `catalog.js` (`validateProduct`, KD-93) : le formulaire de gestion, l'API et
+le build jugent une pièce de la même façon, avec les mêmes messages — l'API n'écrit jamais un fichier que
+le build refuserait. `build.js` n'ajoute que ce qui demande le disque : le fichier de chaque photo existe,
+avec sa casse exacte.
+
+Une fois par clone, activer le hook de messages de commit : `git config core.hooksPath githooks` (voir
+*La fiche d'une pièce* pour le pourquoi).
 
 ### Navigation et pied de page
 
@@ -277,6 +286,60 @@ référence, type, prix (barré + promo), une **pastille d'état** qui ouvre la 
 - Une connexion perdue **après** l'écriture affiche un retour en arrière alors que le dépôt a changé :
   le message invite à recharger, et le rechargement relit GitHub.
 
+### La fiche d'une pièce — `/admin/piece` (KD-93)
+
+`admin/piece.html` + `piece.js`, mêmes styles et même `common.js` que la liste. Trois entrées : `/admin/piece`
+(nouvelle pièce), `?id=<id>` (modifier), `?from=<id>` (dupliquer : tout est repris sauf photos, nom, référence
+et mise en avant, état brouillon, référence suivante suggérée quand la source finit par un nombre). Depuis
+« Mes bijoux » : le bouton « Ajouter une pièce » (copier une pièce existante — on touche la pièce dans la
+liste — ou partir de zéro), le nom de chaque ligne, et les deux premières actions de la feuille (« Modifier la
+fiche », « Dupliquer »).
+
+Une page qui défile, un seul bouton « Enregistrer » en haut, **photo d'abord**. Les champs, dans l'ordre :
+photos (appareil ou galerie, plusieurs ; la première est la vignette, « Première » et retirer sur chacune),
+nom (obligatoire même en brouillon : l'`id` en découle), référence (texte libre, unicité normalisée
+contrôlée en direct **et** par l'API, message qui nomme la pièce qui la porte), collections (cocher une
+collection suggère son type tant qu'aucun n'est choisi — une suggestion, jamais une règle), public, type,
+description (sans limite, retours à la ligne et emojis gardés jusqu'à la page pièce), prix, mise en avant. Pas
+de prix réduit tant que KD-109 n'existe pas : l'API refuse `promoPrice`. Matières, dimensions et
+personnalisation par pièce : KD-119.
+
+- **Publication** : « En vente sur le site » ne devient choisissable que quand photo, nom, type, public et
+  prix sont là (la phrase dit ce qui manque, `catalog.describeSaleBlockers`) et se coche alors d'elle-même ;
+  « Brouillon, invisible » sinon, ou si elle le choisit. Une pièce publiée montre son état en lecture seule :
+  réserver, vendre, retirer se font depuis la liste.
+- **Photos préparées dans le navigateur** avant l'envoi : décodées avec leur orientation EXIF, réduites à
+  1 600 px de grand côté, réencodées en WebP (JPEG si le navigateur ne sait pas encoder le WebP), puis
+  envoyées en base64 dans le JSON. L'API les passe telles quelles à GitHub sans les décoder — encoder des octets
+  en JavaScript coûte ~10 ms de CPU par Mo, la limite d'une Function sur l'offre gratuite ; JSON.parse et
+  JSON.stringify sont natifs (~3-4 ms pour cinq photos de 200 Ko, mesuré). Bornes : 10 photos par pièce, 1 Mo
+  par photo, 3 Mo par enregistrement ; la signature des octets fait foi, jamais le type annoncé. Mesuré sur la
+  preview : 5 × 590 Ko = 3,84 Mo de JSON, 5,7 s de bout en bout dont ~0,3 s de téléversement, le reste est
+  la chaîne GitHub.
+- **Un enregistrement = un commit** (API Git Data, `commitFiles`) : les nouvelles photos, `data/products.json`
+  (la pièce en tête du fichier pour une création), les photos retirées — rien n'existe à moitié. Message
+  `content(catalog): add "<nom>"` / `update "<nom>"` / `delete draft "<nom>"` + « via l'espace de gestion ».
+  Si la branche a avancé entre la lecture et l'écriture, GitHub refuse (422, rendu 409) et la route rejoue
+  une fois depuis une lecture fraîche.
+- **Un brouillon ne déploie pas** : son commit porte `[CF-Pages-Skip]`, la seule des cinq formes que
+  Cloudflare Pages reconnaît qui ne soit pas aussi lue par GitHub Actions (les autres feraient sauter le
+  garde-fou du catalogue). Pages lit le message **entier**, corps compris : un commit de **code** qui cite
+  un de ces marqueurs, même entre guillemets, n'est pas déployé non plus — arrivé sur KD-93. D'où
+  `githooks/commit-msg`, qui refuse tout message local qui en contient un ; les commits de l'espace de gestion
+  passent par l'API GitHub et ne le rencontrent pas. Avant une fusion fast-forward sur `master`, la tête doit
+  être un commit de code : une tête « brouillon » ne reconstruirait pas la production.
+- **Après l'enregistrement** : retour à « Mes bijoux » sur la pièce, avec « Enregistré, mise en ligne dans 1 à
+  2 minutes » (ou « Brouillon enregistré. Il n'est pas sur le site. » — la réponse dit `deploys`). L'écran
+  ne vérifie pas encore la mise en ligne : KD-82. Un refus laisse la fiche telle quelle avec la raison en tête ;
+  une session Access expirée en cours de saisie met le texte de côté avant le rechargement et le restaure
+  après (les photos ajoutées non, l'écran le dit) ; quitter avec des changements non enregistrés demande
+  confirmation.
+- **Supprimer** n'existe que pour un brouillon jamais publié (la pièce et les photos qu'elle possède par leur
+  nom, un commit sans déploiement). Une pièce publiée se retire depuis la liste : sa référence reste prise.
+- Les photos d'avant KD-93 (`images/boucles-….jpg`) gardent leur nom et leur `alt` écrit à la main ; retirées
+  d'une pièce, elles restent dans le dépôt. Le `alt` d'une photo ajoutée est dérivé (« Boucles d'oreilles
+  Herbier Jaune Velours, photo 2 ») et recalculé quand le nom ou l'ordre change.
+
 Réglages Zero Trust (dashboard, non versionnés — état au 16/09/2026) :
 
 | Réglage | Valeur |
@@ -328,7 +391,10 @@ ligne SumUp.
 |---|---|
 | `GET /api/health` | preuve de vie : lit `data/products.json` sur GitHub avec le token et répond `{ ok, github, products, checkedAt }` (200) ou `{ ok: false, … }` (503). Publique, mise en cache 5 min (1 min en échec) pour ne pas consommer le quota GitHub ; `checkedAt` date la lecture GitHub réelle — deux réponses avec le même `checkedAt` viennent du cache. Ne révèle que le nombre de pièces, un état et cette date — le détail des erreurs est dans les logs Cloudflare (*Functions › Real-time logs*) |
 | `/api/admin/*` | les routes de l'espace de gestion. Derrière Cloudflare Access à la bordure (voir *Espace de gestion*), puis `functions/api/admin/_middleware.js` revérifie le jeton : **503** si les variables Access manquent, **401** sans jeton valide. Fermé par défaut, sans exception |
-| `GET /api/admin/products` | la liste des pièces lue sur GitHub, dans l'ordre d'affichage, et `branch` : la branche sur laquelle ce déploiement écrirait (`master` en production, la branche de la preview sinon, `null` = écriture impossible). À vérifier avant la première bascule sur un nouvel environnement |
+| `GET /api/admin/products` | la liste des pièces lue sur GitHub, dans l'ordre d'affichage, les `collections` (le fichier tel quel) et `branch` : la branche sur laquelle ce déploiement écrirait (`master` en production, la branche de la preview sinon, `null` = écriture impossible). À vérifier avant la première bascule sur un nouvel environnement |
+| `POST /api/admin/products` | une nouvelle pièce depuis le formulaire (KD-93). Corps JSON `{ piece, photos }` : la fiche (`name`, `reference`, `category`, `audience`, `collections`, `desc`, `price`, `featured`, `images` = liste de `{ src }` (photo existante) ou `{ upload: "photo-n" }`, `availability` = `disponible` (défaut) ou `brouillon`) et les photos ajoutées en base64 (`photos["photo-n"]`, WebP ou JPEG, ≤ 1 Mo chacune, ≤ 10, ≤ 3 Mo par requête). L'`id` vient du nom (`catalog.makeId`, `-2` s'il est pris), `createdAt` du jour à Paris. **200** `{ product, commit, deploys }` · **400** corps illisible, champ inattendu (`promoPrice` : « ne se saisit pas encore », KD-109), photo citée sans contenu · **413** photo ou requête trop lourde · **415** format inconnu · **422** ce qu'elle doit corriger (nom absent, référence déjà portée par « … », mise en vente sans photo ou prix, type ou public manquant) ou la règle de `catalog.validateProduct` · **409 / 502 / 503** GitHub |
+| `PUT /api/admin/products/:id` | la fiche entière d'une pièce, même corps que `POST`. L'état ne s'y change pas — sauf un brouillon qui passe en vente — (`400` sinon) ; `id`, `createdAt`, `reservedUntil`, `sale` et les champs que le formulaire ne connaît pas sont préservés. Une pièce en vente garde une photo et un prix (`422`) ; les photos retirées sont supprimées si la pièce les possède par leur nom |
+| `DELETE /api/admin/products/:id` | un brouillon jamais publié, avec ses photos, en un commit sans déploiement. **200** `{ deleted, commit, deploys: false }` · **422** pièce publiée (« se retire depuis la liste ») · **404** |
 | `PATCH /api/admin/products/:id` | corps `{ "availability": <état>, "sale"?: { amount, channel, date } }`, rien d'autre — un `reservedUntil` dans le corps est refusé (400) : la date de réservation se calcule. Les transitions sont celles de `catalog.allowedTransitions` (une publiée ne redevient pas brouillon, une réservée active ne se réserve pas à nouveau, `vendue → vendue` avec `sale` complète la vente). `reservee` écrit `reservedUntil` = jour à Paris + 13 ; quitter un état retire `reservedUntil` ou `sale`, pour que le fichier reste valide. Réécrit le fichier en **un commit** sur la branche du déploiement (auteur : l'adresse `noreply` GitHub du propriétaire du token, jamais une adresse personnelle — le dépôt est public ; message `content(catalog): mark "<nom>" as <état>` ou `record the sale of "<nom>"` + « via l'espace de gestion »). **200** `{ product, commit }` ou `{ product, unchanged: true }` · **400** corps invalide, champ inattendu, date de réservation envoyée · **404** pièce inconnue · **422** état inconnu, transition refusée, vente mal renseignée (canal, date au futur, montant négatif), pièce qui ne peut pas passer en vente ou réservée (règle de `catalog.js`) · **409** deux écritures se sont croisées deux fois de suite (une relecture + un nouvel essai, transition rejugée, sont faits avant) · **502** GitHub en erreur (401/403 = jeton expiré ?, 404 = branche disparue) · **503** environnement sans token ou sans branche connue |
 | tout autre `/api/*` | 404 JSON — au lieu de la page d'accueil en 200 que Pages sert pour un chemin inconnu ; **405** avec `Allow` pour une route existante appelée avec la mauvaise méthode |
 
@@ -394,7 +460,7 @@ retour d'information passe par les libellés de l'espace de gestion.
 |---|---|---|---|
 | Validité des données | JSON cassé, champ manquant, image introuvable | `build.js` au déploiement | e-mail Cloudflare « Deployment failed » |
 | Site vs dépôt | boutique injoignable, déploiement échoué ou jamais parti, catalogue amputé en ligne, **espace de gestion (`/admin/`, `/api/admin/`) servi sans redirection Access**, gabarit `/templates/…` servi au lieu d'un 404 | `check-site.js`, toutes les 6 h | e-mail GitHub (workflow en échec) |
-| Dépôt vs son état d'avant | catalogue qui perd anormalement des pièces alors que le build réussit | `check-catalog-drop.js`, à chaque push touchant `data/products.json` | e-mail GitHub (workflow en échec) |
+| Dépôt vs son état d'avant | catalogue qui perd anormalement des pièces alors que le build réussit | `check-catalog-drop.js`, à chaque push touchant `data/products.json` — y compris les commits de brouillon, que Cloudflare Pages ne déploie pas mais que GitHub Actions voit (voir *La fiche d'une pièce*) | e-mail GitHub (workflow en échec) |
 
 La sonde compare le site au dépôt ; le garde-fou compare le dépôt à lui-même. Aucun des deux ne
 revalide les données : une saisie invalide est signalée par le build, tout de suite. La sonde prend
