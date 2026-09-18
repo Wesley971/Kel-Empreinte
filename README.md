@@ -298,12 +298,18 @@ fiche », « Dupliquer »).
 Une page qui défile, un seul bouton « Enregistrer » en haut, **photo d'abord**. Les champs, dans l'ordre :
 photos (appareil ou galerie, plusieurs ; la première est la vignette, « Première » et retirer sur chacune),
 nom (obligatoire même en brouillon : l'`id` en découle), référence (texte libre, unicité normalisée
-contrôlée en direct **et** par l'API, message qui nomme la pièce qui la porte), collections (cocher une
-collection suggère son type tant qu'aucun n'est choisi — une suggestion, jamais une règle), public, type,
+contrôlée en direct **et** par l'API, message qui nomme la pièce qui la porte), collections, public, type,
 description (sans limite, retours à la ligne et emojis gardés jusqu'à la page pièce), prix, mise en avant. Pas
 de prix réduit tant que KD-109 n'existe pas : l'API refuse `promoPrice`. Matières, dimensions et
 personnalisation par pièce : KD-119.
 
+- **Le type suggéré par la collection** (`category` dans `collections.json`, aucun pour Parures) : cocher une
+  collection remplit le type s'il est vide ; la décocher le vide seulement s'il vient d'elle et n'a pas été
+  touché ; dès qu'elle clique une pastille de type, il ne bouge plus jamais tout seul ; une deuxième collection
+  ne remplace rien et ne remplit pas le vide laissé par la première. Une suggestion qui s'annule proprement,
+  jamais un effacement d'un choix à elle — l'origine est tracée par la source du geste (`suggestedType`
+  dans `piece.js` : le code coche sans cliquer, elle ne peut pas choisir sans cliquer). KD-120 l'étendra à
+  plusieurs types par pièce.
 - **Publication** : « En vente sur le site » ne devient choisissable que quand photo, nom, type, public et
   prix sont là (la phrase dit ce qui manque, `catalog.describeSaleBlockers`) et se coche alors d'elle-même ;
   « Brouillon, invisible » sinon, ou si elle le choisit. Une pièce publiée montre son état en lecture seule :
