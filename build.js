@@ -136,7 +136,7 @@ function validateCollections(collections) {
   collections.forEach(function(collection, index) {
     var where = 'collection n° ' + (index + 1) + (collection && isText(collection.id) ? ' (' + collection.id + ')' : '');
     if (!collection || typeof collection !== 'object' || Array.isArray(collection)) fail(where + ' : entrée invalide');
-    checkKnownKeys(collection, ['id', 'name', 'order', 'tagline', 'cover'], where);
+    checkKnownKeys(collection, ['id', 'name', 'order', 'tagline', 'cover', 'category'], where);
     if (!isText(collection.id) || !ID_PATTERN.test(collection.id)) fail(where + ' : « id » doit être un identifiant en minuscules-tirets');
     if (seen[collection.id]) fail(where + ' : identifiant en double');
     seen[collection.id] = true;
@@ -145,6 +145,11 @@ function validateCollections(collections) {
     checkOptionalText(collection.tagline, 'tagline', where);
     checkOptionalText(collection.cover, 'cover', where);
     if (isText(collection.cover)) checkImageFile(collection.cover, where + ', couverture');
+    // Le type que la collection suggère au formulaire de pièce (KD-93) : une suggestion
+    // modifiable, jamais une règle — « Parures » mêle bracelets et boucles d'oreilles, elle n'en a pas
+    if (!isBlank(collection.category) && !catalog.CATEGORIES.some(function(c) { return c.id === collection.category; })) {
+      fail(where + ' : « category » doit être un type de pièce connu (reçu : ' + JSON.stringify(collection.category) + ')');
+    }
   });
   return collections.slice().sort(function(a, b) { return (a.order - b.order) || a.name.localeCompare(b.name, 'fr'); });
 }

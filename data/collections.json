@@ -4,20 +4,39 @@
     "name": "La Maison Du Nœud Pap",
     "order": 1,
     "tagline": null,
-    "cover": null
+    "cover": null,
+    "category": "noeud-papillon"
   },
   {
     "id": "tresors-autour-du-cou",
     "name": "Trésors Autour Du Cou",
     "order": 2,
     "tagline": null,
-    "cover": null
+    "cover": null,
+    "category": "collier"
+  },
+  {
+    "id": "eclats-d-oreilles",
+    "name": "Éclats D'oreilles",
+    "order": 3,
+    "tagline": null,
+    "cover": null,
+    "category": "boucles-oreilles"
+  },
+  {
+    "id": "merveille-au-doigt",
+    "name": "Merveille Au Doigt",
+    "order": 4,
+    "tagline": null,
+    "cover": null,
+    "category": "bague"
   },
   {
     "id": "parures",
     "name": "Parures",
-    "order": 3,
+    "order": 5,
     "tagline": null,
-    "cover": null
+    "cover": null,
+    "category": null
   }
 ]
