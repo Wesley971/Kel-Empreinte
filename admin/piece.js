@@ -102,6 +102,7 @@
   var existing = null;    // la pièce source (edit : celle qu'on modifie ; copy : le modèle)
   var photos = [];        // dans l'ordre affiché : { src, alt } (existante) ou { blob, kind, preview, name, busy } (ajoutée)
   var userChoseState = false; // tant qu'elle n'a pas touché « Publication », l'état suit photo + prix
+  var suggestedType = null;   // { collectionId, category } quand le type vient d'une collection et n'a pas été touché ; null = le sien
   var dirty = false;      // quelque chose a changé depuis le chargement
   var saving = false;
 
@@ -468,18 +469,40 @@
   els.name.addEventListener('blur', checkName);
   els.reference.addEventListener('input', checkReference);
   els.price.addEventListener('input', function () { checkPrice(); updatePublish(); });
-  [els.audience, els.category].forEach(function (group) { group.addEventListener('change', updatePublish); });
+  els.audience.addEventListener('change', updatePublish);
 
-  // Le type suggéré par la collection (collections.json, `category`) : un préremplissage quand
-  // aucun type n'est encore choisi — jamais une règle, elle change ce qu'elle veut
+  // Le type suggéré par la collection (collections.json, `category`) : une suggestion qui s'annule
+  // proprement, jamais un effacement d'un choix de Prescilia. Ce qui distingue « suggéré » de
+  // « saisi », c'est la source du geste : le code coche sans cliquer, elle ne peut pas choisir
+  // sans cliquer.
+  //   - cocher une collection remplit le type s'il est vide (et s'en souvient : `suggestedType`) ;
+  //   - décocher cette collection vide le type, seulement s'il vient d'elle et n'a pas bougé ;
+  //   - dès qu'elle touche le type elle-même, il ne bouge plus jamais tout seul ;
+  //   - une deuxième collection ne remplace rien, et ne remplit pas non plus le vide laissé par la
+  //     première : une suggestion n'agit qu'au moment où on coche, jamais après coup.
   els.collections.addEventListener('change', function (event) {
-    if (!event.target.checked || checked(els.category, 'category').length) return;
-    var collection = collections.filter(function (c) { return c.id === event.target.value; })[0];
-    if (collection && collection.category) {
+    var collectionId = event.target.value;
+    var current = checked(els.category, 'category')[0] || null;
+    if (event.target.checked) {
+      if (current) return;
+      var collection = collections.filter(function (c) { return c.id === collectionId; })[0];
+      if (!collection || !collection.category) return;
       check(els.category, 'category', [collection.category]);
-      updatePublish();
+      suggestedType = { collectionId: collectionId, category: collection.category };
+    } else {
+      if (!suggestedType || suggestedType.collectionId !== collectionId || suggestedType.category !== current) return;
+      check(els.category, 'category', []);
+      suggestedType = null;
     }
+    updatePublish();
   });
+
+  // Un clic sur une pastille de type ne vient que d'elle (le code coche sans cliquer) : le type est
+  // désormais le sien — même si elle reclique la valeur suggérée, ce qu'un `change` ne verrait pas
+  els.category.addEventListener('click', function (event) {
+    if (event.target.matches('input')) suggestedType = null;
+  });
+  els.category.addEventListener('change', updatePublish);
 
   // La description grandit avec le texte : pas d'ascenseur dans un ascenseur au téléphone
   function autosize(textarea) {
@@ -595,6 +618,7 @@
     delete piece.images;
     piece.availability = targetState();
     piece.photosLost = photos.some(function (photo) { return !photo.src; });
+    piece.suggestedType = suggestedType; // une suggestion en cours reste annulable après le rechargement
     try { window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(piece)); } catch (_) { /* stockage indisponible : tant pis */ }
   }
 
@@ -610,6 +634,7 @@
     check(els.collections, 'collections', piece.collections || []);
     check(els.audience, 'audience', piece.audience ? [piece.audience] : []);
     check(els.category, 'category', piece.category ? [piece.category] : []);
+    suggestedType = piece.suggestedType && piece.suggestedType.category === piece.category ? piece.suggestedType : null;
     els.desc.value = piece.desc || '';
     els.price.value = typeof piece.price === 'number' ? String(piece.price).replace('.', ',') : '';
     els.featured.checked = piece.featured === true;
