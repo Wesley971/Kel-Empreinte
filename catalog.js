@@ -215,7 +215,8 @@
     if (blockers.length === 1 && blockers[0] === 'prix') return 'Renseignez un prix avant ' + action + '.';
     if (blockers.length === 2 && blockers.indexOf('photo') !== -1 && blockers.indexOf('prix') !== -1) return 'Ajoutez une photo et un prix avant ' + action + '.';
     var labels = blockers.map(function(code) { return BLOCKER_LABELS[code] || code; });
-    return 'Il manque ' + labels.join(', ') + ' ' + action.replace(/^de /, 'pour ') + '.';
+    var list = labels.length > 1 ? labels.slice(0, -1).join(', ') + ' et ' + labels[labels.length - 1] : labels[0];
+    return 'Il manque ' + list + ' ' + action.replace(/^de /, 'pour ') + '.';
   }
 
   // Ordre de l'écran de gestion et de l'API : les pièces dans l'ordre du fichier, les vendues

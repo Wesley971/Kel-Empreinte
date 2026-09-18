@@ -464,7 +464,7 @@
 
   els.form.addEventListener('input', touched);
   els.form.addEventListener('change', touched);
-  els.name.addEventListener('input', function () { if (!els.nameError.hidden) checkName(); });
+  els.name.addEventListener('input', function () { if (!els.nameError.hidden) checkName(); updatePublish(); });
   els.name.addEventListener('blur', checkName);
   els.reference.addEventListener('input', checkReference);
   els.price.addEventListener('input', function () { checkPrice(); updatePublish(); });
