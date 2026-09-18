@@ -158,15 +158,10 @@ img { display: block; max-width: 100%; height: auto; }
 
 /* ═══════════════════════════════════════════════
    SECTION LAYOUT (scroll classique)
+   Chaque section suit son contenu ; seul le hero fait un écran (voir .hero).
    ═══════════════════════════════════════════════ */
 .canvas-section {
-  min-height: 100vh;
   overflow: hidden;
-}
-
-/* Pièces mises en avant, collections : la hauteur suit le contenu, pas l'écran */
-.canvas-section--auto {
-  min-height: auto;
 }
 
 /* ═══════════════════════════════════════════════
@@ -176,7 +171,7 @@ img { display: block; max-width: 100%; height: auto; }
   background: var(--oat);
   display: grid;
   grid-template-columns: 1fr 1fr;
-  min-height: 100vh;
+  min-height: 100vh; /* la seule section plein écran : l'entrée en matière */
 }
 
 .hero-image {
@@ -269,7 +264,6 @@ picture { display: contents; }
 .process {
   background: var(--night);
   color: var(--cream);
-  min-height: 100vh;
   display: flex;
   align-items: center;
   padding: 100px 64px;
@@ -396,7 +390,6 @@ picture { display: contents; }
    ═══════════════════════════════════════════════ */
 .order {
   background: var(--oat);
-  min-height: 100vh;
   display: flex;
   align-items: center;
   padding: 100px 64px;
@@ -814,7 +807,6 @@ picture { display: contents; }
    ═══════════════════════════════════════════════ */
 .signature {
   background: var(--oat-mid);
-  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
