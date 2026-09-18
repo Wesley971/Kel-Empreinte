@@ -12,10 +12,11 @@ encore là : les pages renvoient vers WhatsApp.
 
 | Fichier | Rôle |
 |---|---|
-| `index.html` | l'accueil ; les sections « Pièces mises en avant » et « Collections » y sont **générées** entre les marqueurs `<!-- build:… -->` |
+| `index.html` | l'accueil ; la navigation, les coordonnées de la section « Contact », les sections « Pièces mises en avant » et « Collections » y sont **générées** entre les marqueurs `<!-- build:… -->` |
 | `templates/boutique.html`, `templates/piece.html` | gabarits sources de la boutique et des pages pièce (mêmes marqueurs) ; `build.js` les remplit et écrit `boutique/`. Déployés avec le site mais **jamais servis** : `functions/templates/[[path]].js` répond 404 (le `_redirects` de Pages ne sait pas produire un 404), et la sonde le vérifie |
+| `templates/partials/nav.html`, `templates/partials/footer.html` | la navigation et le pied de page, **écrits une seule fois** et injectés par `build.js` dans les quatre pages (voir *Navigation et pied de page*). Le commentaire de tête de chaque partiel explique le fichier et n'est pas injecté |
 | `boutique/`, `sitemap.xml` | **générés au build, jamais committés** (`.gitignore`) : `boutique/index.html` + une page par pièce visible, plan du site. Vidés et réécrits à chaque `node build.js` |
-| `404.html` | servie par Pages avec un vrai code 404 pour tout chemin inconnu — dont l'adresse d'une pièce passée en brouillon ou retirée |
+| `404.html` | servie par Pages avec un vrai code 404 pour tout chemin inconnu — dont l'adresse d'une pièce passée en brouillon ou retirée. Porte la même navigation et le même pied de page que le reste du site, réécrits en place comme ceux d'`index.html` |
 | `tokens.css` | les variables CSS du site (palette, courbes, texture) — seule définition, chargée par toutes les pages **avant** leur feuille et par `/admin/`. Contient aussi la **palette sombre** (voir *Mode sombre*) |
 | `tooplate-ivory-style.css`, `tooplate-ivory-script.js` | styles de base et comportement de l'accueil (template Tooplate 2166 adapté) |
 | `shop.css` | composants du site marchand : carte d'une pièce, puces de filtre, grille, page pièce, bandes de collections, pied de page, 404 |
@@ -28,6 +29,7 @@ encore là : les pages renvoient vers WhatsApp.
 | `.github/workflows/` | planification des deux contrôles ci-dessus (GitHub Actions) |
 | `data/products.json` | **source de vérité du catalogue**, modifiée par l'espace de gestion (`/admin/`) via les Functions, un commit par modification (voir *Modèle*) |
 | `data/collections.json` | les collections nommées (`id`, `name`, `order`, `tagline`, `cover`) : une bande par collection sur l'accueil, dans cet ordre. « Nouveautés » n'y est pas : elle est automatique (les 8 dernières pièces en vente) |
+| `data/site.json` | les coordonnées (`contact` : `email`, `phone` au format international, `phoneLabel`, `whatsapp`) et les boutiques (`shops` : `name`, `url`). **Seule source** de ces liens : ils apparaissent dans le pied de page des quatre pages et dans la section « Contact » de l'accueil. Ne contient pas la navigation — c'est le fichier que l'écran de réglages de KD-79 écrira |
 | `admin/` | l'espace de gestion, derrière Cloudflare Access (voir *Espace de gestion*). `index.html` + `gestion.css` + `gestion.js` = l'écran « Mes bijoux » (les fichiers nomment l'espace, pas le chemin) ; `manifest.webmanifest` + `icon-*.png` = nom « Mes bijoux » et icône opaque (fond crème) du raccourci « écran d'accueil » de Prescilia (KD-66), `start_url` et `scope` `/admin/` ; `guide.html` = **ancien** guide « Gérer mes bijoux », écrit pour Sveltia, remplacé par KD-104 |
 | `images/` | photos des pièces (KD-93 y écrira depuis l'espace de gestion). `images/logo/` : le logo en 200 px, en deux versions — `logo-kel-empreinte.png` (« Empreinte » en encre, appareil clair) et `logo-kel-empreinte-dark-mode.png` (« Empreinte » en crème, appareil sombre) — et l'image de partage `og-image-kel-empreinte.png`. Les sources haute résolution ne sont pas dans le dépôt |
 | `favicon.svg` | favicon qui embarque les deux logos et affiche celui du réglage de l'appareil (Chrome, Firefox) ; Safari ignore les favicons SVG et garde le PNG déclaré avant lui |
@@ -101,8 +103,9 @@ réglage : elle relève de KD-95.
 node build.js
 ```
 
-Lit `data/products.json` et `data/collections.json`, vérifie les données, puis génère : les régions
-de l'accueil (`index.html`, réécrit en place entre les marqueurs), `boutique/index.html`, une page
+Lit `data/products.json`, `data/collections.json` et `data/site.json`, vérifie les données, puis
+génère : les régions de l'accueil et de `404.html` (réécrits en place entre les marqueurs),
+`boutique/index.html`, une page
 `boutique/<id>/index.html` par pièce visible (disponible, réservée, vendue) et `sitemap.xml`. Toute la
 validation précède la première écriture ; `boutique/` est vidé avant d'être réécrit, pour qu'aucune
 page d'une pièce devenue brouillon ou retirée ne survive. Le script refuse de générer (sortie 1,
@@ -115,10 +118,35 @@ catalogue sans pièce visible **n'est pas une erreur** : les pages le disent. Le
 tel qu'écrit puis rendu tel que **réglé** à l'instant du build : une réservation échue est rendue
 disponible (voir *Réservation*), et le journal le dit.
 
+### Navigation et pied de page
+
+Écrits **une seule fois** (KD-100), en trois morceaux qui ne se recouvrent pas :
+
+| Quoi | Où ça se modifie |
+|---|---|
+| le balisage (coque de la pilule, hamburger, menu mobile, structure du pied de page) | `templates/partials/nav.html` et `templates/partials/footer.html` |
+| les entrées du menu — ajouter, renommer, déplacer, retirer | la liste `NAV_ITEMS` de `build.js`, et nulle part ailleurs |
+| les liens de contact et de boutiques | `data/site.json` |
+
+`build.js` remplit les partiels puis les injecte dans la région `<!-- build:nav:… -->` des quatre
+pages et dans `<!-- build:footer:… -->` des trois qui ont un pied de page. L'accueil n'en a pas :
+ses coordonnées vivent dans la section « Contact », avec son propre balisage, alimentée par les
+régions `signature-contact` et `signature-links` — mêmes données, autre habillage.
+
+Trois variantes de navigation, choisies par page : `home` (toutes les entrées, ancres locales,
+« Accueil » active), `shop` (boutique et pages pièce ; les entrées `homeOnly` disparaissent, les
+ancres deviennent `/#…`, « Boutique » active) et `plain` (404, aucune entrée active). L'entrée active
+est désignée par son adresse, jamais par son libellé : renommer une entrée n'éteint pas sa mise en
+évidence.
+
+Un partiel est lu en LF quelles que soient ses fins de ligne sur le disque, et une région vide fait
+**échouer** le build — une navigation absente est une erreur de génération, pas un état légitime.
+
 Le HTML committé d'`index.html` est un **instantané** : après une modification depuis l'espace de
 gestion, le dépôt est périmé jusqu'au prochain `node build.js` local (Cloudflare, lui, régénère à
-chaque déploiement). Lancer le build avant de committer une modification d'`index.html`, et ne jamais
-éditer à la main ce qui se trouve entre les marqueurs — c'est écrasé au déploiement. En local,
+chaque déploiement). Lancer le build avant de committer une modification d'`index.html` ou de
+`404.html` — les deux seuls fichiers versionnés réécrits en place —, et ne jamais éditer à la main ce
+qui se trouve entre les marqueurs : c'est écrasé au déploiement. En local,
 `boutique/` n'existe qu'après un build ; servir la racine avec n'importe quel serveur statique.
 
 Sur Cloudflare (`CF_PAGES=1`), le build réécrit aussi `functions/_lib/build-info.js` avec la branche
