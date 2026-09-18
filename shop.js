@@ -172,7 +172,10 @@
       });
 
       if (countEl) countEl.textContent = shown === 0 ? 'Aucune pièce' : shown + (shown > 1 ? ' pièces' : ' pièce');
-      if (emptyEl) emptyEl.hidden = shown > 0;
+      // Le message « aucune pièce ne correspond à ces filtres » suppose des cartes à filtrer : quand
+      // la grille est vide dès le build (rien en vente), build.js a déjà posé son message et
+      // « Tout afficher » n'aurait rien à montrer (KD-118).
+      if (emptyEl) emptyEl.hidden = shown > 0 || !cards.length;
 
       groups.forEach(function(group) {
         var filter = group.getAttribute('data-filter');
