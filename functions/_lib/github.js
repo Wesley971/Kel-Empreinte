@@ -22,8 +22,11 @@
 
    Le piège de ce fichier est l'encodage : l'API échange les contenus en base64, et
    atob/btoa ne connaissent que le Latin-1. Un « é » passé à btoa lève une exception,
-   un « ç » lu via atob seul devient deux caractères parasites. Tout passe donc par des
-   octets UTF-8 (TextEncoder/TextDecoder), et le round-trip est couvert par un test. */
+   un « ç » lu via atob seul devient deux caractères parasites. Tout texte passe donc par
+   des octets UTF-8 (TextEncoder/TextDecoder), et le round-trip est couvert par un test.
+   Une photo, elle, n'est jamais encodée ici : le navigateur l'envoie déjà en base64
+   (FileReader, natif), et la chaîne passe telle quelle à GitHub — encoder 1 Mo d'octets en
+   JavaScript coûte ~10 ms de CPU, la limite d'une Function sur l'offre gratuite. */
 
 import { buildInfo } from './build-info.js';
 
@@ -111,8 +114,8 @@ export async function readRepoFile(env, filePath, { ref } = {}) {
 }
 
 // Écrit (crée ou met à jour) un fichier TEXTE du dépôt en un commit sur la branche. Texte
-// uniquement : le contenu passe par TextEncoder. Pour des octets (une photo), ou plusieurs
-// fichiers d'un coup, voir commitFiles.
+// uniquement : le contenu passe par TextEncoder. Pour une photo, ou plusieurs fichiers d'un
+// coup, voir commitFiles.
 // `sha` : celui renvoyé par readRepoFile pour une mise à jour ; omis pour une création.
 // Sans le bon sha, GitHub répond 409 : c'est voulu, on ne veut jamais écraser à l'aveugle.
 // Une branche supprimée (preview survivant à son merge) donne un 404 GitHub : rien n'est écrit.
@@ -184,8 +187,9 @@ export async function branchHead(env) {
   return ref.object.sha;
 }
 
-// files : { path, text } pour un fichier texte, { path, bytes } (Uint8Array) pour une photo,
-// { path, remove: true } pour retirer un fichier. Renvoie { commit } — le sha du commit écrit.
+// files : { path, text } pour un fichier texte, { path, base64 } pour une photo déjà encodée par
+// le navigateur (passée telle quelle, jamais décodée ni réencodée ici), { path, remove: true }
+// pour retirer un fichier. Renvoie { commit } — le sha du commit écrit.
 export async function commitFiles(env, { message, files, parent }) {
   const config = repoConfig(env);
   if (!config.branch) {
@@ -203,7 +207,7 @@ export async function commitFiles(env, { message, files, parent }) {
       throw new GitHubError(0, 'commitFiles : chemin refusé — ' + String(file.path));
     }
     if (file.remove) return { path: file.path, mode: '100644', type: 'blob', sha: null };
-    const content = file.bytes ? encodeBase64Bytes(file.bytes) : encodeBase64Utf8(String(file.text));
+    const content = typeof file.base64 === 'string' ? file.base64 : encodeBase64Utf8(String(file.text));
     const blob = await githubFetch(config, git + '/blobs', {
       method: 'POST',
       body: JSON.stringify({ content, encoding: 'base64' }),
@@ -233,15 +237,4 @@ export async function commitFiles(env, { message, files, parent }) {
     throw err;
   }
   return { commit: commit.sha };
-}
-
-// Des octets (une photo) en base64 — par tranches, comme encodeBase64Utf8. Jamais via une
-// chaîne : un octet ≥ 0x80 passé par TextEncoder deviendrait deux octets, et l'image serait
-// corrompue sans que rien ne le dise avant l'affichage (KD-90).
-export function encodeBase64Bytes(bytes) {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-  }
-  return btoa(binary);
 }

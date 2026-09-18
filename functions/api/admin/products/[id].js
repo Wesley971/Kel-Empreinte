@@ -1,7 +1,14 @@
-/* PATCH /api/admin/products/:id — changer l'état d'une pièce, en un commit sur le dépôt.
+/* /api/admin/products/:id — une pièce : changer son état (PATCH), modifier sa fiche (PUT),
+   supprimer un brouillon (DELETE). Chaque écriture est un commit sur le dépôt.
 
-   Corps attendu : { "availability": <état>, "sale"?: { amount, channel, date } } et rien d'autre.
-   C'est l'écran « Mes bijoux » (KD-92, KD-98), pas un éditeur de fiche (KD-93).
+   PUT et DELETE (KD-93) : le formulaire de pièce. PUT reçoit le même JSON que POST
+   ({ piece, photos }) et réécrit la fiche entière ; l'état ne s'y change pas
+   (sauf brouillon → en vente), `reservedUntil`, `sale`, `createdAt` et `id` sont préservés.
+   DELETE ne s'applique qu'à un brouillon jamais publié : la pièce et ses photos disparaissent,
+   commit [CI Skip]. Règles et réponses : functions/_lib/piece.js.
+
+   PATCH — changer l'état. Corps attendu : { "availability": <état>, "sale"?: { amount, channel,
+   date } } et rien d'autre. C'est l'écran « Mes bijoux » (KD-92, KD-98), pas l'éditeur de fiche.
 
    - Les transitions possibles sont celles de catalog.js (allowedTransitions), les mêmes que
      l'écran propose : une pièce publiée ne redevient jamais un brouillon, une réservée active ne
@@ -33,6 +40,8 @@
 
 import { json, error, methodNotAllowed } from '../../../_lib/http.js';
 import { GitHubError } from '../../../_lib/github.js';
+import { readPieceRequest } from '../../../_lib/photos.js';
+import { checkPieceBody, savePiece, deleteDraft } from '../../../_lib/piece.js';
 import {
   AVAILABILITIES, STATE_LABELS, CHANNELS, loadProducts, saveProducts, withState,
   displayBlockers, saleBlockers, describeSaleBlockers, canTransition, isReservationActive,
@@ -43,7 +52,10 @@ const BODY_FIELDS = ['availability', 'sale'];
 const SALE_FIELDS = ['amount', 'channel', 'date'];
 
 export async function onRequest(context) {
-  if (context.request.method !== 'PATCH') return methodNotAllowed(['PATCH']);
+  const method = context.request.method;
+  if (method === 'PUT') return update(context);
+  if (method === 'DELETE') return remove(context);
+  if (method !== 'PATCH') return methodNotAllowed(['PATCH', 'PUT', 'DELETE']);
 
   let body;
   try {
@@ -76,6 +88,30 @@ export async function onRequest(context) {
     return await changeState(context.env, context.params.id, body.availability, sale);
   } catch (err) {
     console.error('products : écriture impossible (' + context.params.id + ') — ' + (err && err.message ? err.message : err));
+    return catalogFailure(err);
+  }
+}
+
+// PUT : la fiche entière, depuis le formulaire (KD-93)
+async function update(context) {
+  const request = await readPieceRequest(context.request);
+  if (request.error) return error(request.error.status, request.error.message);
+  const checked = checkPieceBody(request.piece);
+  if (checked.error) return error(checked.error.status, checked.error.message);
+  try {
+    return await savePiece(context.env, { id: context.params.id, piece: checked.piece, uploads: request.uploads });
+  } catch (err) {
+    console.error('products : modification impossible (' + context.params.id + ') — ' + (err && err.message ? err.message : err));
+    return catalogFailure(err);
+  }
+}
+
+// DELETE : un brouillon jamais publié, et lui seul (KD-93)
+async function remove(context) {
+  try {
+    return await deleteDraft(context.env, context.params.id);
+  } catch (err) {
+    console.error('products : suppression impossible (' + context.params.id + ') — ' + (err && err.message ? err.message : err));
     return catalogFailure(err);
   }
 }

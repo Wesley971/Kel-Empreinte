@@ -542,6 +542,54 @@
     return products.map(function(product) { return renderShopCard(product, indent); }).join('\n');
   }
 
+  /* ── Saisie d'une pièce (KD-93) ──
+
+     Ce que le formulaire de gestion et l'API calculent à partir de ce que Prescilia tape : l'id
+     (jamais saisi, jamais modifié ensuite), la propriétaire d'une référence (pour le message
+     « déjà portée par … »), le alt des photos ajoutées. Ici pour que l'écran montre exactement
+     ce que le serveur écrira. */
+
+  var COMBINING_MARKS = new RegExp('[' + String.fromCharCode(0x300) + '-' + String.fromCharCode(0x36f) + ']', 'g');
+
+  // « Nœud pap' Été 2026 » → « noeud-pap-ete-2026 » : minuscules, sans accents, tirets simples —
+  // la règle d'ID_PATTERN. Chaîne vide si rien ne survit (un nom fait d'emojis seuls).
+  function slugify(text) {
+    return String(text == null ? '' : text)
+      .replace(/œ/g, 'oe').replace(/Œ/g, 'oe').replace(/æ/g, 'ae').replace(/Æ/g, 'ae')
+      .normalize('NFD').replace(COMBINING_MARKS, '')
+      .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
+  // L'id d'une nouvelle pièce : le nom en slug, suffixé -2, -3… s'il est déjà pris. Vide si le
+  // nom ne donne rien : l'appelant refuse alors la pièce avec une phrase.
+  function makeId(name, takenIds) {
+    var base = slugify(name);
+    if (!base) return '';
+    var id = base;
+    for (var n = 2; takenIds.indexOf(id) !== -1; n++) id = base + '-' + n;
+    return id;
+  }
+
+  // La pièce qui porte déjà cette référence (comparaison normalisée), hors `exceptId` — celle
+  // qu'on est en train de modifier. null si la référence est libre.
+  function referenceOwner(products, reference, exceptId) {
+    var wanted = normalizeReference(reference);
+    if (!wanted) return null;
+    for (var i = 0; i < products.length; i++) {
+      var product = products[i];
+      if (product && product.id !== exceptId && typeof product.reference === 'string' && normalizeReference(product.reference) === wanted) return product;
+    }
+    return null;
+  }
+
+  // « Boucles d'oreilles Herbier Jaune Velours », puis « …, photo 2 » : le alt des photos ajoutées
+  // depuis le formulaire. Un alt écrit à la main (les photos d'avant KD-93) n'est jamais réécrit.
+  function photoAlt(product, position) {
+    var type = findById(CATEGORIES, product.category) ? categoryLabel(product.category) : '';
+    var base = (type ? type + ' ' : '') + (isText(product.name) ? product.name.trim() : '');
+    return position > 1 ? base + ', photo ' + position : base;
+  }
+
   /* ── Validation du modèle v2 ──
 
      Ce que build.js exige d'une pièce, écrit une seule fois (KD-93) : le formulaire de gestion
@@ -786,6 +834,10 @@
     ID_PATTERN: ID_PATTERN,
     KNOWN_FIELDS: KNOWN_FIELDS,
     validateProduct: validateProduct,
+    slugify: slugify,
+    makeId: makeId,
+    referenceOwner: referenceOwner,
+    photoAlt: photoAlt,
     parseIsoDate: parseIsoDate,
     formatDay: formatDay,
     formatReservedUntil: formatReservedUntil,
