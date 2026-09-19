@@ -591,7 +591,7 @@
         dirty = false;
         clearDraft();
         // Retour à la liste, sur la pièce : c'est elle qui dit « Enregistré, mise en ligne… »
-        window.location.assign('/admin/?saved=' + encodeURIComponent(data.product.id) + '&deploys=' + (data.deploys ? '1' : '0'));
+        window.location.assign('/admin/?saved=' + encodeURIComponent(data.product.id) + '&state=' + encodeURIComponent(data.product.availability));
       })
       .catch(function (err) {
         setSaving(false);

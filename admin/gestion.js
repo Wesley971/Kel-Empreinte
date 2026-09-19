@@ -648,7 +648,7 @@
   });
   els.pickCancel.addEventListener('click', function () { setPicking(false); });
 
-  // Retour de la fiche : ?saved=<id>&deploys=1|0 ou ?deleted=<nom> — le toast, la pièce mise en
+  // Retour de la fiche : ?saved=<id>&state=<état> ou ?deleted=<nom> — le toast, la pièce mise en
   // évidence, et l'adresse nettoyée pour qu'un rechargement ne répète pas le message
   function afterForm() {
     var params = new URLSearchParams(window.location.search);
@@ -657,7 +657,7 @@
     if (!saved && !deleted) return;
     window.history.replaceState(null, '', window.location.pathname);
     if (deleted) return showToast('Brouillon « ' + deleted + ' » supprimé.');
-    showToast(params.get('deploys') === '0' ? 'Brouillon enregistré. Il n\'est pas sur le site.' : 'Enregistré, mise en ligne dans 1 à 2 minutes.');
+    showToast(params.get('state') === 'brouillon' ? 'Brouillon enregistré. Il n\'est pas sur le site.' : 'Enregistré, mise en ligne dans 1 à 2 minutes.');
     var row = rows[saved];
     if (!row) return;
     row.classList.add('kel-row--saved');
