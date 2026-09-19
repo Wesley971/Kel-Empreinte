@@ -23,7 +23,8 @@
    L'état : une nouvelle pièce est « disponible » (par défaut) ou « brouillon » ; un brouillon
    modifié peut passer en vente ; une pièce publiée ne change pas d'état ici — c'est la liste
    « Mes bijoux » (PATCH) qui réserve, vend, retire. `reservedUntil`, `sale`, `createdAt` et
-   `id` sont préservés côté serveur : le formulaire ne les envoie jamais. */
+   `id` sont préservés côté serveur : le formulaire ne les envoie jamais — sauf `createdAt` d'un
+   brouillon qui passe en vente, fixé à ce jour (date de première mise en vente, voir assemble). */
 
 import catalog from '../../catalog.js';
 import { json, error } from './http.js';
@@ -330,6 +331,11 @@ function assemble(previous, id, piece, images, availability, now) {
   // L'ordre parmi les pièces mises en avant ne se choisit pas ici : une pièce cochée garde le
   // sien (ou passe après celles qui en ont un), une pièce décochée le perd
   if (!out.featured) out.featuredOrder = null;
+  // `createdAt` est la date de première mise en vente (le nom est historique) : un brouillon la
+  // reçoit le jour où il passe en vente, pas celui de sa saisie — sinon un brouillon gardé deux
+  // mois naîtrait déjà vieux dans « Nouveautés ». Même règle dans withState (products.js) pour le
+  // passage en vente depuis la liste. Une pièce retirée puis remise en vente garde la sienne.
+  if (previous && previous.availability === 'brouillon' && availability !== 'brouillon') out.createdAt = catalog.todayInParis(now);
   return out;
 }
 

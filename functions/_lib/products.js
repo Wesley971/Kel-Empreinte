@@ -57,7 +57,12 @@ export function findProduct(products, id) {
 // juste après `availability`, `sale` en dernier — le diff du commit se lit d'un coup d'œil. Les
 // données qui n'ont plus de sens dans le nouvel état disparaissent (la date d'une pièce qui n'est
 // plus réservée, la vente d'une pièce qui n'est plus vendue) : build.js les refuserait.
-export function withState(product, availability, { reservedUntil, sale } = {}) {
+// `today` : le jour à Paris — un brouillon qui passe en vente reçoit ce jour comme `createdAt`,
+// la date de première mise en vente (le nom du champ est historique) ; toute autre transition
+// garde la date, une pièce retirée puis remise en vente n'est pas une nouveauté. Même règle dans
+// piece.js (assemble) pour le passage en vente depuis la fiche.
+export function withState(product, availability, { reservedUntil, sale, today } = {}) {
+  const published = product.availability === 'brouillon' && availability !== 'brouillon';
   const updated = {};
   Object.keys(product).forEach((key) => {
     if (key === 'reservedUntil' || key === 'sale') return;
@@ -66,6 +71,7 @@ export function withState(product, availability, { reservedUntil, sale } = {}) {
       updated.availability = availability;
       if (reservedUntil) updated.reservedUntil = reservedUntil;
     }
+    if (key === 'createdAt' && published && today) updated.createdAt = today;
   });
   if (sale) updated.sale = sale;
   return updated;
