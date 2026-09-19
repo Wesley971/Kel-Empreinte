@@ -47,6 +47,12 @@
     <p class="kel-status" id="status" role="status" aria-live="polite" hidden>
       <span class="kel-status-dot" aria-hidden="true"></span>Mise à jour du site en cours…
     </p>
+    <!-- Mise en ligne (KD-82) : ce qui est enregistré est-il en ligne ? Rempli par gestion.js depuis
+         GET /api/admin/publication — « Mise en ligne en cours… » (data-state="pending") ou l'alerte
+         quand ça bloque (data-state="late") ; caché quand tout est en ligne, ou quand on ne sait pas -->
+    <p class="kel-status kel-publication" id="publication" role="status" aria-live="polite" hidden>
+      <span class="kel-status-dot" aria-hidden="true"></span><span id="publication-text"></span>
+    </p>
   </div>
 
   <main class="kel-main">

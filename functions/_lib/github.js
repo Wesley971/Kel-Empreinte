@@ -73,6 +73,36 @@ export function deploymentBranch() {
   return buildInfo.branch || null;
 }
 
+// Le commit que ce déploiement sert (CF_PAGES_COMMIT_SHA, écrit par build.js) : c'est en le
+// comparant à la tête de la branche que l'écran de gestion sait si une modification est en
+// ligne (KD-82). null hors Pages.
+export function deploymentCommit() {
+  return buildInfo.commit || null;
+}
+
+// Ce que la branche a de plus que `base` : GitHub compare base...head et renvoie le statut
+// (identical, ahead, behind, diverged) et les commits de head absents de base — jusqu'à 250,
+// bien au-delà de ce qu'un déploiement en retard peut accumuler. `base` est un sha, `head` la
+// branche du déploiement (KD-82). Renvoie { status, commits: [{ sha, message, date }] } ; la
+// date est celle du committer, posée par GitHub pour les commits de l'API.
+export async function compareCommits(env, base, head) {
+  const config = repoConfig(env);
+  // Ni sha ni branche ne sont encodés : GitHub lit « base...head » tel quel, barre oblique d'une
+  // branche de preview (feat/KD-…) comprise — encodée en %2F, elle ne serait pas résolue
+  const result = await githubFetch(config, '/repos/' + config.repo + '/compare/' + base + '...' + head);
+  if (typeof result.status !== 'string' || !Array.isArray(result.commits)) {
+    throw new GitHubError(0, 'compare ' + base.slice(0, 7) + '...' + head + ' : réponse GitHub sans statut ni commits');
+  }
+  return {
+    status: result.status,
+    commits: result.commits.map((entry) => ({
+      sha: entry.sha,
+      message: entry.commit && typeof entry.commit.message === 'string' ? entry.commit.message : '',
+      date: entry.commit && entry.commit.committer && entry.commit.committer.date ? entry.commit.committer.date : null,
+    })),
+  };
+}
+
 async function githubFetch(config, path, init = {}) {
   const response = await fetch(API_URL + path, {
     ...init,

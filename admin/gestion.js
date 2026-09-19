@@ -18,8 +18,17 @@
       du site en cours » s'allume ;
    2. la réponse de PATCH /api/admin/products/:id confirme — la pièce est alors rangée dans son
       nouveau groupe — ou la ligne revient en arrière, obligatoirement, avec la raison écrite ;
-   3. une fois enregistré : « Enregistré, mise en ligne dans 1 à 2 minutes. » On ne relit pas le
-      site pour vérifier la mise en ligne (ce sera KD-82).
+   3. une fois enregistré : « Enregistré, mise en ligne en cours… », puis la mise en ligne est
+      observée (voir ci-dessous) jusqu'à « Mise en ligne terminée. ».
+
+   Mise en ligne (KD-82) : l'écran ne promet plus « 1 à 2 minutes », il regarde. GET
+   /api/admin/publication compare le commit servi par le déploiement à la tête de la branche et
+   répond online / pending / late. Un contrôle à chaque ouverture (et au retour sur l'onglet : elle
+   enregistre depuis son téléphone et ferme), puis un sondage toutes les 20 s après chaque
+   enregistrement — bascule d'état ici, retour de la fiche — jusqu'à online (toast, photos en
+   attente rechargées), late (bandeau : c'est enregistré, le site n'est toujours pas à jour depuis telle
+   heure, prévenez Wesley) ou 8 minutes. Toute erreur de la route = silence : on ne sait pas, on ne
+   dit rien, et un bandeau déjà affiché ne s'efface que sur online.
 
    Recherche (KD-102) : un champ en tête de liste filtre à chaque frappe sur le nom et la référence,
    mot par mot dans n'importe quel ordre, sans casse ni accents. Les groupes gardent leur ordre, les
@@ -32,6 +41,9 @@
   // L'appel à l'API, la reconnexion, le toast, les feuilles et la confirmation viennent de
   // common.js (KD-93) : la fiche d'une pièce (piece.js) les partage.
   var API = '/api/admin/products';
+  var PUBLICATION_API = '/api/admin/publication';
+  var POLL_MS = 20000;          // entre deux sondages de la mise en ligne
+  var WATCH_MAX_MS = 8 * 60000; // au-delà, le serveur a déjà dit « late » : on arrête de sonder
   var catalog = window.KelCatalog;
 
   // Ordre des groupes de l'écran ; le libellé pluriel sert au titre et au résumé
@@ -53,6 +65,8 @@
     retry: document.getElementById('retry'),
     summary: document.getElementById('summary'),
     status: document.getElementById('status'),
+    publication: document.getElementById('publication'),
+    publicationText: document.getElementById('publication-text'),
     toast: document.getElementById('toast'),
     rowTemplate: document.getElementById('row-template'),
     groupTemplate: document.getElementById('group-template'),
@@ -143,7 +157,8 @@
         els.searchForm.hidden = !products.length;
         els.add.hidden = false;
         render();
-        afterForm();
+        // Le retour de la fiche lance le sondage ; sinon un simple contrôle d'ouverture
+        if (!afterForm()) publication.check();
       })
       .catch(function (err) {
         hide(els.loading);
@@ -217,9 +232,10 @@
       img.width = 52;
       img.height = 52;
       // Pas encore servie (le build suit chaque enregistrement, brouillon compris) : la case garde
-      // son fond et la ligne le dit, plutôt qu'une image cassée (recette du 19/09)
+      // son fond et la ligne le dit, plutôt qu'une image cassée (recette du 19/09). L'image reste
+      // dans la ligne, cachée : à la mise en ligne, publication.reloadPhotos lui redonne sa source
       img.addEventListener('error', function () {
-        img.remove();
+        img.hidden = true;
         var pending = row.querySelector('.kel-row-pending');
         pending.textContent = 'Photo en cours de mise en ligne.';
         show(pending);
@@ -521,8 +537,10 @@
         replaceWith(product, data.product);
         endPending();
         render();
-        // 3. Et ensuite
-        showToast(data.unchanged ? 'Cette pièce était déjà dans cet état.' : 'Enregistré, mise en ligne dans 1 à 2 minutes.');
+        // 3. Et ensuite : la mise en ligne est observée (KD-82) — sauf quand rien n'a été écrit
+        if (data.unchanged) return showToast('Cette pièce était déjà dans cet état.');
+        showToast('Enregistré, mise en ligne en cours…');
+        publication.watch();
       })
       .catch(function (err) {
         // 2 bis. Refusé ou injoignable : retour en arrière, obligatoire, et la raison — sur la ligne
@@ -649,21 +667,159 @@
   els.pickCancel.addEventListener('click', function () { setPicking(false); });
 
   // Retour de la fiche : ?saved=<id>&state=<état> ou ?deleted=<nom> — le toast, la pièce mise en
-  // évidence, et l'adresse nettoyée pour qu'un rechargement ne répète pas le message
+  // évidence, et l'adresse nettoyée pour qu'un rechargement ne répète pas le message. Renvoie true
+  // quand le sondage de la mise en ligne a été lancé (un enregistrement, brouillon compris : ses
+  // photos arrivent avec le déploiement) ; une suppression de brouillon ne déploie rien.
   function afterForm() {
     var params = new URLSearchParams(window.location.search);
     var saved = params.get('saved');
     var deleted = params.get('deleted');
-    if (!saved && !deleted) return;
+    if (!saved && !deleted) return false;
     window.history.replaceState(null, '', window.location.pathname);
-    if (deleted) return showToast('Brouillon « ' + deleted + ' » supprimé.');
-    showToast(params.get('state') === 'brouillon' ? 'Brouillon enregistré. Il n\'est pas sur le site.' : 'Enregistré, mise en ligne dans 1 à 2 minutes.');
+    if (deleted) {
+      showToast('Brouillon « ' + deleted + ' » supprimé.');
+      return false;
+    }
+    showToast(params.get('state') === 'brouillon' ? 'Brouillon enregistré. Il n\'est pas sur le site.' : 'Enregistré, mise en ligne en cours…');
+    publication.watch();
     var row = rows[saved];
-    if (!row) return;
-    row.classList.add('kel-row--saved');
-    row.scrollIntoView({ block: 'center' });
-    window.setTimeout(function () { row.classList.remove('kel-row--saved'); }, 4000);
+    if (row) {
+      row.classList.add('kel-row--saved');
+      row.scrollIntoView({ block: 'center' });
+      window.setTimeout(function () { row.classList.remove('kel-row--saved'); }, 4000);
+    }
+    return true;
   }
+
+  /* ── Mise en ligne (KD-82) ── */
+
+  // Un seul sondage à la fois : un second enregistrement pendant l'attente repart de zéro (le
+  // serveur juge le plus ancien commit en attente, pas le dernier)
+  var publication = (function () {
+    var timer = null;
+    var startedAt = 0;
+    var shown = null; // l'état affiché : 'pending' | 'late' | null
+
+    function stop() {
+      if (timer) window.clearTimeout(timer);
+      timer = null;
+    }
+
+    // « 14 h 32 », précédé du jour quand le commit n'est pas d'aujourd'hui, heure de Paris
+    function formatSince(isoDate) {
+      var date = new Date(isoDate);
+      if (isNaN(date.getTime())) return '';
+      var parts = {};
+      new Intl.DateTimeFormat('fr-FR', { timeZone: catalog.TIME_ZONE, hour: 'numeric', minute: '2-digit' })
+        .formatToParts(date).forEach(function (part) { parts[part.type] = part.value; });
+      var time = parts.hour + '\u00a0h\u00a0' + parts.minute;
+      var day = catalog.todayInParis(date);
+      if (day === catalog.todayInParis()) return time;
+      return 'le ' + catalog.formatDay(catalog.parseIsoDate(day), true) + ' à ' + time;
+    }
+
+    function display(state, text) {
+      shown = state;
+      els.publication.dataset.state = state;
+      els.publicationText.textContent = text;
+      show(els.publication);
+    }
+
+    function clear() {
+      shown = null;
+      delete els.publication.dataset.state;
+      hide(els.publication);
+    }
+
+    // Une photo enregistrée mais pas encore servie a gardé sa case cachée (renderRow) : à la mise
+    // en ligne, on lui redonne sa source — versionnée par le commit déployé pour ne pas relire un
+    // 404 gardé en cache. Toujours absente ? Le même gestionnaire error la recache et le dit.
+    function reloadPhotos(deployed) {
+      Object.keys(rows).forEach(function (id) {
+        var row = rows[id];
+        var pendingEl = row.querySelector('.kel-row-pending');
+        var img = row.querySelector('.kel-row-photo img');
+        if (!img || !img.hidden || pendingEl.hidden) return;
+        hide(pendingEl);
+        img.hidden = false;
+        img.src = img.src.split('?')[0] + '?v=' + encodeURIComponent(deployed || String(Date.now()));
+      });
+    }
+
+    // Le verdict du serveur, appliqué. `watching` : on est dans un sondage après un enregistrement
+    // — c'est là que « terminée » se dit ; un simple contrôle d'ouverture n'annonce rien de bon
+    function apply(data, watching) {
+      if (data.state === 'online') {
+        var wasWaiting = shown !== null || watching;
+        clear();
+        stop();
+        if (wasWaiting) {
+          showToast('Mise en ligne terminée.');
+          reloadPhotos(data.deployed);
+        }
+        return;
+      }
+      if (data.state === 'late') {
+        var since = data.pending.length ? formatSince(data.pending[0].date) : '';
+        display('late', 'Tout est bien enregistré, mais le site n\'est toujours pas à jour' + (since ? ' depuis ' + since : '') +
+          '. Prévenez Wesley, inutile de ressaisir quoi que ce soit.');
+        stop();
+        return;
+      }
+      if (data.state === 'pending') {
+        display('pending', 'Mise en ligne en cours…');
+        if (watching) schedule();
+      }
+    }
+
+    // Toute erreur — route en échec, réseau, pas de réponse en 15 s, réponse sans verdict, session
+    // expirée — est un silence : on ne sait pas, donc on n'affiche rien. « Mise en ligne en
+    // cours… » s'efface (on ne sait plus si c'est en cours), l'alerte « pas à jour » reste (elle a été
+    // constatée, seul un « online » la lève), et on arrête de sonder. Une session expirée n'entraîne
+    // pas de rechargement : le prochain geste le fera, comme avant.
+    var busy = false; // un appel à la fois : un retour d'onglet pendant un sondage n'en ajoute pas
+    function check(watching) {
+      if (busy) return Promise.resolve();
+      busy = true;
+      var controller = typeof AbortController === 'function' ? new AbortController() : null;
+      var deadline = controller ? window.setTimeout(function () { controller.abort(); }, 15000) : null;
+      return api(PUBLICATION_API, controller ? { signal: controller.signal } : {})
+        .then(function (data) {
+          if (!data || typeof data.state !== 'string' || !Array.isArray(data.pending)) throw new Error('réponse sans verdict');
+          apply(data, watching);
+        })
+        .catch(function (err) {
+          if (window.console) console.warn('publication : ' + (err && err.message ? err.message : err)); // pour Wesley, jamais pour l'écran
+          stop();
+          if (shown === 'pending') clear();
+        })
+        .then(function () {
+          if (deadline) window.clearTimeout(deadline);
+          busy = false;
+        });
+    }
+
+    function schedule() {
+      stop();
+      if (Date.now() - startedAt >= WATCH_MAX_MS) return;
+      timer = window.setTimeout(function () { timer = null; check(true); }, POLL_MS);
+    }
+
+    // Après un enregistrement : « en cours » tout de suite, premier contrôle dans 20 s (un build
+    // ne finit jamais avant), puis toutes les 20 s
+    function watch() {
+      startedAt = Date.now();
+      if (shown !== 'late') display('pending', 'Mise en ligne en cours…');
+      schedule();
+    }
+
+    // Elle revient sur l'onglet : comme une ouverture. Pas pendant un sondage, qui continue seul.
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible' && !timer && products.length) check(false);
+    });
+
+    return { check: function () { return check(false); }, watch: watch };
+  }());
 
   /* ── Démarrage ── */
 

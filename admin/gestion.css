@@ -108,6 +108,23 @@ body {
   50% { opacity: 0.35; }
 }
 
+/* Mise en ligne (KD-82) : la bande du statut (classe partagée). En cours : neutre, le point pulse. Pas à jour :
+   l'ambre des réservations — une alerte à lire, pas un refus (--kel-error reste aux erreurs) ; le
+   point ne pulse plus, rien n'est en cours. */
+.kel-publication { line-height: 1.4; }
+
+.kel-publication[data-state="late"] {
+  font-weight: 500;
+  color: var(--amber-deep);
+  background: var(--amber-ghost);
+  border-bottom-color: var(--amber);
+}
+
+.kel-publication[data-state="late"] .kel-status-dot {
+  background: var(--amber);
+  animation: none;
+}
+
 /* « Copier une pièce existante » : le bandeau qui dit quoi faire, sous l'en-tête */
 .kel-pick {
   display: flex;
