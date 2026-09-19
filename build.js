@@ -482,9 +482,11 @@ function renderAudienceChips(shown, indent) {
   }).join('\n');
 }
 
+// Une pièce compte pour chacun de ses types : une parure sort sous « Bracelets » et sous
+// « Boucles d'oreilles » (KD-120)
 function renderCategoryChips(shown, indent) {
   return catalog.CATEGORIES.map(function(category) {
-    var count = shown.filter(function(p) { return p.category === category.id; }).length;
+    var count = shown.filter(function(p) { return catalog.productCategories(p).indexOf(category.id) !== -1; }).length;
     return count ? indent + renderChip(category.id, category.plural, count) : '';
   }).filter(Boolean).join('\n');
 }
@@ -520,11 +522,12 @@ function renderShopPage(page, shown, collections, site) {
 
 var GENERIC_DESCRIPTION = 'Pièce unique en résine et fleurs séchées, faite main en France.';
 
-// Ce que WhatsApp montre sous le lien : le prix, le type, puis la première ligne de sa description
+// Ce que WhatsApp montre sous le lien : le prix, le ou les types (« Boucles d'oreilles et
+// bracelet »), puis la première ligne de sa description
 function pieceSummary(product) {
   var parts = [];
   if (!catalog.isSold(product) && catalog.hasPrice(product)) parts.push(catalog.formatPrice(product));
-  parts.push(catalog.categoryLabel(product.category, true));
+  parts.push(catalog.categoriesLabel(product));
   var firstLine = String(product.desc || '').split('\n').map(function(l) { return l.trim(); }).filter(Boolean)[0];
   parts.push(firstLine || GENERIC_DESCRIPTION);
   var text = parts.join(' · ');
@@ -565,11 +568,6 @@ function optionLabels(product) {
   });
 }
 
-function joinFr(items) {
-  if (items.length <= 1) return items.join('');
-  return items.slice(0, -1).join(', ') + ' et ' + items[items.length - 1];
-}
-
 function renderPieceArticle(product, collections) {
   var name = esc(product.name);
   var images = product.images;
@@ -595,7 +593,9 @@ function renderPieceArticle(product, collections) {
   lines.push('  </div>');
 
   lines.push('  <div class="piece-info">');
-  var eyebrow = [catalog.categoryLabel(product.category, true), catalog.audienceLabel(product.audience)];
+  // « Boucles d'oreilles et bracelet · Mixte · Parures » : les types dans l'ordre du vocabulaire,
+  // la liste entière quel que soit leur nombre (KD-120)
+  var eyebrow = [catalog.categoriesLabel(product), catalog.audienceLabel(product.audience)];
   (product.collections || []).forEach(function(id) {
     var collection = collections.filter(function(c) { return c.id === id; })[0];
     if (collection) eyebrow.push(collection.name);
@@ -639,7 +639,7 @@ function renderPieceArticle(product, collections) {
   if (options.length && !catalog.isSold(product)) {
     lines.push('    <div class="piece-custom">');
     lines.push('      <h2 class="piece-custom-title">Personnalisation</h2>');
-    lines.push('      <p class="piece-custom-text">Cette pièce peut être adaptée&nbsp;: ' + esc(joinFr(options)) + '. Sur devis, réponse sous 72&nbsp;h.</p>');
+    lines.push('      <p class="piece-custom-text">Cette pièce peut être adaptée&nbsp;: ' + esc(catalog.joinList(options)) + '. Sur devis, réponse sous 72&nbsp;h.</p>');
     lines.push('      <a class="cta-link" href="' + esc(catalog.buildCustomizationLink(product)) + '" target="_blank" rel="noopener noreferrer">Demander un devis</a>');
     lines.push('    </div>');
   }

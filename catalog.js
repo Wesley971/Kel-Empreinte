@@ -7,8 +7,9 @@
    une seule fois, pour que l'accueil, la boutique, les pages pièce, le build, l'écran de gestion
    et l'API ne divergent jamais.
 
-   Modèle v2 (KD-97) : une pièce est unique. Elle a un prix, un public, un type ; elle peut porter
-   la référence que Prescilia lui donne (« BO-023 ») et appartenir à des collections. Cinq états,
+   Modèle v2 (KD-97) : une pièce est unique. Elle a un prix, un public, un ou plusieurs types
+   (une parure bracelet + boucles d'oreilles est UNE pièce, KD-120) ; elle peut porter la
+   référence que Prescilia lui donne (« BO-023 ») et appartenir à des collections. Cinq états,
    voir AVAILABILITIES. Le rendu des cartes (boutique, accueil) est généré au déploiement.
 
    La réservation (KD-98) suit une règle de dates écrite une seule fois ici — 14 jours fixes,
@@ -100,6 +101,37 @@
     return plural ? category.plural : category.label;
   }
 
+  // « a, b et c » : la liste jointe à la française, pour les phrases de l'écran comme pour les
+  // libellés de types. Un élément : lui-même ; aucun : chaîne vide.
+  function joinList(items) {
+    if (items.length <= 1) return items.join('');
+    return items.slice(0, -1).join(', ') + ' et ' + items[items.length - 1];
+  }
+
+  // Les types d'une pièce (`categories`, KD-120) dans l'ordre du vocabulaire, partout et sans
+  // exception : une parure se lit « Boucles d'oreilles et bracelet » sur la carte, la page, dans
+  // l'écran de gestion et le alt de ses photos. L'ordre du fichier ne compte pas ; un id inconnu
+  // n'est pas rendu (validateProduct le refuse par ailleurs).
+  function sortCategories(ids) {
+    if (!Array.isArray(ids)) return [];
+    return CATEGORIES.map(function(category) { return category.id; })
+      .filter(function(id) { return ids.indexOf(id) !== -1; });
+  }
+
+  function productCategories(product) {
+    return sortCategories(product && product.categories);
+  }
+
+  // « Boucles d'oreilles et bracelet », « Boucles d'oreilles, bracelet, cravate et broche » : les
+  // libellés au singulier, le premier avec sa majuscule, les suivants en minuscule initiale. Pas de
+  // mot « Parure » : c'est le nom d'une collection, il vit déjà dans le nom de la pièce.
+  function categoriesLabel(product) {
+    var labels = productCategories(product).map(function(id) { return categoryLabel(id); });
+    return joinList(labels.map(function(label, i) {
+      return i ? label.charAt(0).toLowerCase() + label.slice(1) : label;
+    }));
+  }
+
   function audienceLabel(id) {
     var audience = findById(AUDIENCES, id);
     return audience ? audience.label : (id || '');
@@ -183,13 +215,13 @@
   }
 
   // Ce qui empêche une pièce d'être montrée sur le site, quel que soit son état visible (en
-  // vente, réservée, vendue) : une photo, un nom, un type, un public — ce que build.js exige
-  // d'une pièce qui n'est pas un brouillon. Renvoie une liste de codes.
+  // vente, réservée, vendue) : une photo, un nom, au moins un type, un public — ce que build.js
+  // exige d'une pièce qui n'est pas un brouillon. Renvoie une liste de codes.
   function displayBlockers(product) {
     var blockers = [];
     if (!hasPhoto(product)) blockers.push('photo');
     if (!isText(product.name)) blockers.push('nom');
-    if (!findById(CATEGORIES, product.category)) blockers.push('type');
+    if (!productCategories(product).length) blockers.push('type');
     if (!findById(AUDIENCES, product.audience)) blockers.push('public');
     return blockers;
   }
@@ -215,8 +247,7 @@
     if (blockers.length === 1 && blockers[0] === 'prix') return 'Renseignez un prix avant ' + action + '.';
     if (blockers.length === 2 && blockers.indexOf('photo') !== -1 && blockers.indexOf('prix') !== -1) return 'Ajoutez une photo et un prix avant ' + action + '.';
     var labels = blockers.map(function(code) { return BLOCKER_LABELS[code] || code; });
-    var list = labels.length > 1 ? labels.slice(0, -1).join(', ') + ' et ' + labels[labels.length - 1] : labels[0];
-    return 'Il manque ' + list + ' ' + action.replace(/^de /, 'pour ') + '.';
+    return 'Il manque ' + joinList(labels) + ' ' + action.replace(/^de /, 'pour ') + '.';
   }
 
   // Ordre de l'écran de gestion et de l'API : les pièces dans l'ordre du fichier, les vendues
@@ -499,16 +530,18 @@
   // exactement « shop-card » sur toutes les cartes : check-site.js compte `class="shop-card"`
   // pour comparer le site au dépôt. L'état et les critères de filtre sont portés par des
   // attributs data-*, qui servent d'accroche à shop.js (filtres, échéance) et au CSS (photo d'une
-  // vendue).
+  // vendue). Les types, comme les collections, sont une liste séparée d'espaces : une parure
+  // répond au filtre « Bracelets » comme au filtre « Boucles d'oreilles ».
   function renderShopCard(product, indent) {
     indent = indent || '';
     var name = escapeHtml(product.name);
     var url = escapeHtml(pieceUrl(product));
     var image = product.images[0];
+    var categories = productCategories(product).map(escapeHtml).join(' ');
     var collections = (product.collections || []).map(escapeHtml).join(' ');
     var lines = [
       indent + '<li class="shop-card" data-id="' + escapeHtml(product.id) + '" data-availability="' + escapeHtml(product.availability) + '"' +
-        ' data-category="' + escapeHtml(product.category) + '" data-audience="' + escapeHtml(product.audience) + '"' +
+        ' data-category="' + categories + '" data-audience="' + escapeHtml(product.audience) + '"' +
         ' data-collections="' + collections + '"' + reservedAttrs(product) + '>',
       indent + '  <a class="shop-card-photo" href="' + url + '" aria-label="' + name + '">',
       indent + '    <img src="' + escapeHtml(imageUrl(image)) + '" alt="' + escapeHtml(image.alt) + '" loading="lazy">'
@@ -583,10 +616,12 @@
     return null;
   }
 
-  // « Boucles d'oreilles Herbier Jaune Velours », puis « …, photo 2 » : le alt des photos ajoutées
-  // depuis le formulaire. Un alt écrit à la main (les photos d'avant KD-93) n'est jamais réécrit.
+  // « Boucles d'oreilles Herbier Jaune Velours », « Boucles d'oreilles et bracelet Parure Jardin »,
+  // puis « …, photo 2 » : le alt des photos ajoutées depuis le formulaire — les types dans l'ordre
+  // du vocabulaire, comme partout. Un alt écrit à la main (les photos d'avant KD-93) n'est jamais
+  // réécrit.
   function photoAlt(product, position) {
-    var type = findById(CATEGORIES, product.category) ? categoryLabel(product.category) : '';
+    var type = categoriesLabel(product);
     var base = (type ? type + ' ' : '') + (isText(product.name) ? product.name.trim() : '');
     return position > 1 ? base + ', photo ' + position : base;
   }
@@ -611,11 +646,22 @@
   // (images/<id>-1.webp) : uniquement minuscules, chiffres et tirets simples — jamais de remontée.
   var ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-  var KNOWN_FIELDS = ['id', 'reference', 'name', 'category', 'audience', 'collections', 'availability', 'reservedUntil',
+  var KNOWN_FIELDS = ['id', 'reference', 'name', 'categories', 'audience', 'collections', 'availability', 'reservedUntil',
     'price', 'promoPrice', 'customization', 'desc', 'materials', 'dimensions', 'images', 'featured', 'featuredOrder',
     'createdAt', 'sale'];
-  // Champs du modèle v1 : leur présence dit que le fichier n'a pas été migré (KD-97)
-  var REMOVED_FIELDS = ['heading', 'plainName', 'badge', 'specs', 'priceType', 'priceConfirmed', 'customizable'];
+  // Champs retirés du modèle : leur présence dit que le fichier n'a pas été migré — jamais acceptée
+  // en silence. Ceux du modèle v1 (KD-97), puis « category », une valeur, devenu la liste
+  // « categories » (KD-120). La valeur dit ce qu'il fallait faire.
+  var REMOVED_FIELDS = {
+    heading: 'le modèle v2 (KD-97)',
+    plainName: 'le modèle v2 (KD-97)',
+    badge: 'le modèle v2 (KD-97)',
+    specs: 'le modèle v2 (KD-97)',
+    priceType: 'le modèle v2 (KD-97)',
+    priceConfirmed: 'le modèle v2 (KD-97)',
+    customizable: 'le modèle v2 (KD-97)',
+    category: '« categories », une liste de types (KD-120)'
+  };
 
   function isBlank(value) { return value === undefined || value === null; }
   function isAmount(value) { return typeof value === 'number' && isFinite(value) && value >= 0; }
@@ -651,8 +697,8 @@
       return problems;
     }
 
-    REMOVED_FIELDS.forEach(function(field) {
-      if (product[field] !== undefined) report(where + ' : ancien format (champ « ' + field + ' ») — le catalogue doit être migré vers le modèle v2 (KD-97)');
+    Object.keys(REMOVED_FIELDS).forEach(function(field) {
+      if (product[field] !== undefined) report(where + ' : ancien format (champ « ' + field + ' ») — le catalogue doit être migré vers ' + REMOVED_FIELDS[field]);
     });
     if (product.availability === 'bientot') report(where + ' : l\'état « bientot » n\'existe plus — une pièce sans photo est un « brouillon »');
     checkKnownKeys(product, KNOWN_FIELDS, where);
@@ -673,12 +719,27 @@
     // Un brouillon est une saisie en cours : on ne vérifie que les types, jamais la présence
     if (draft) {
       checkOptionalText(product.name, 'name');
-      if (!isBlank(product.category)) checkOneOf(product.category, ids(CATEGORIES), 'category');
       if (!isBlank(product.audience)) checkOneOf(product.audience, ids(AUDIENCES), 'audience');
     } else {
       if (!isText(product.name)) report(where + ' : champ « name » manquant');
-      checkOneOf(product.category, ids(CATEGORIES), 'category');
       checkOneOf(product.audience, ids(AUDIENCES), 'audience');
+    }
+
+    // Les types : une liste de types connus, sans doublon, et au moins un hors brouillon — une
+    // parure ou un combo est une pièce à plusieurs types (KD-120). L'ordre du fichier est libre,
+    // le rendu suit celui du vocabulaire.
+    if (isBlank(product.categories)) {
+      if (!draft) report(where + ' : champ « categories » manquant — au moins un type parmi ' + ids(CATEGORIES).join(', '));
+    } else if (!Array.isArray(product.categories)) {
+      report(where + ' : « categories » doit être une liste de types');
+    } else {
+      var seenCategories = {};
+      product.categories.forEach(function(id) {
+        checkOneOf(id, ids(CATEGORIES), 'categories');
+        if (seenCategories[id]) report(where + ' : type « ' + id + ' » en double');
+        seenCategories[id] = true;
+      });
+      if (!draft && !product.categories.length) report(where + ' : pièce ' + state + ' sans type — au moins un parmi ' + ids(CATEGORIES).join(', '));
     }
 
     if (!isIsoDate(product.createdAt)) report(where + ' : « createdAt » doit être une date AAAA-MM-JJ');
@@ -809,6 +870,10 @@
     CHANNELS: CHANNELS,
     CUSTOMIZATION_OPTIONS: CUSTOMIZATION_OPTIONS,
     categoryLabel: categoryLabel,
+    joinList: joinList,
+    sortCategories: sortCategories,
+    productCategories: productCategories,
+    categoriesLabel: categoriesLabel,
     audienceLabel: audienceLabel,
     pieceLabel: pieceLabel,
     buildWhatsAppLink: buildWhatsAppLink,

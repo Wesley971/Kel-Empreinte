@@ -61,7 +61,7 @@
     referenceError: document.getElementById('reference-error'),
     collections: document.getElementById('collections'),
     audience: document.getElementById('audience'),
-    category: document.getElementById('category'),
+    categories: document.getElementById('categories'),
     desc: document.getElementById('desc'),
     price: document.getElementById('price'),
     priceError: document.getElementById('price-error'),
@@ -103,7 +103,7 @@
   var existing = null;    // la pièce source (edit : celle qu'on modifie ; copy : le modèle)
   var photos = [];        // dans l'ordre affiché : { src, alt } (existante) ou { blob, kind, preview, name, busy } (ajoutée)
   var userChoseState = false; // tant qu'elle n'a pas touché « Publication », l'état suit photo + prix
-  var suggestedType = null;   // { collectionId, category } quand le type vient d'une collection et n'a pas été touché ; null = le sien
+  var suggestedTypes = [];    // [{ collectionId, category }] : les types cochés par une collection et pas touchés depuis ; les autres sont les siens
   var dirty = false;      // quelque chose a changé depuis le chargement
   var saving = false;
 
@@ -155,9 +155,12 @@
 
   /* ── Les choix : types, publics, collections — depuis catalog.js et l'API ── */
 
+  // Les types en cases à cocher : une parure ou un combo en a plusieurs (KD-120). Leurs libellés
+  // restent ceux du formulaire depuis KD-93 (le pluriel des puces de la boutique) ; la liste
+  // « Boucles d'oreilles et bracelet » est la grammaire d'affichage du site, pas de la saisie.
   function buildChoices() {
     fillChoices(els.audience, 'audience', 'radio', catalog.AUDIENCES.map(function (a) { return { id: a.id, label: a.label }; }));
-    fillChoices(els.category, 'category', 'radio', catalog.CATEGORIES.map(function (c) { return { id: c.id, label: c.plural }; }));
+    fillChoices(els.categories, 'categories', 'checkbox', catalog.CATEGORIES.map(function (c) { return { id: c.id, label: c.plural }; }));
     fillChoices(els.collections, 'collections', 'checkbox', collections.map(function (c) { return { id: c.id, label: c.name }; }));
   }
 
@@ -210,7 +213,7 @@
       els.reference.value = copy ? suggestReference(source.reference) : (source.reference || '');
       check(els.collections, 'collections', source.collections || []);
       check(els.audience, 'audience', source.audience ? [source.audience] : []);
-      check(els.category, 'category', source.category ? [source.category] : []);
+      check(els.categories, 'categories', source.categories || []); // les siens : aucune suggestion en cours
       els.desc.value = source.desc || '';
       els.price.value = typeof source.price === 'number' ? String(source.price).replace('.', ',') : '';
       els.featured.checked = copy ? false : source.featured === true;
@@ -386,7 +389,7 @@
     return {
       name: els.name.value.trim(),
       reference: els.reference.value.trim() || null,
-      category: checked(els.category, 'category')[0] || null,
+      categories: checked(els.categories, 'categories'), // dans l'ordre des cases = celui du vocabulaire
       audience: checked(els.audience, 'audience')[0] || null,
       collections: checked(els.collections, 'collections'),
       desc: els.desc.value,
@@ -488,38 +491,60 @@
   els.price.addEventListener('input', function () { checkPrice(); updatePublish(); });
   els.audience.addEventListener('change', updatePublish);
 
-  // Le type suggéré par la collection (collections.json, `category`) : une suggestion qui s'annule
-  // proprement, jamais un effacement d'un choix de Prescilia. Ce qui distingue « suggéré » de
-  // « saisi », c'est la source du geste : le code coche sans cliquer, elle ne peut pas choisir
-  // sans cliquer.
-  //   - cocher une collection remplit le type s'il est vide (et s'en souvient : `suggestedType`) ;
-  //   - décocher cette collection vide le type, seulement s'il vient d'elle et n'a pas bougé ;
-  //   - dès qu'elle touche le type elle-même, il ne bouge plus jamais tout seul ;
-  //   - une deuxième collection ne remplace rien, et ne remplit pas non plus le vide laissé par la
-  //     première : une suggestion n'agit qu'au moment où on coche, jamais après coup.
+  // Les types suggérés par les collections (collections.json, `category`) : une suggestion qui
+  // s'annule proprement, jamais un effacement d'un choix de Prescilia. Ce qui distingue « suggéré »
+  // de « saisi », c'est la source du geste : le code coche sans cliquer, elle ne peut pas choisir
+  // sans cliquer. La garde est PAR TYPE (KD-120), plus globale comme avec le type unique de KD-93 :
+  //   - cocher une collection coche ses types encore vides, et s'en souvient (`suggestedTypes`) ;
+  //     une case déjà cochée — par elle ou par une autre collection — n'est pas touchée ;
+  //   - décocher une collection décoche seulement les types qui viennent d'elle et n'ont pas bougé ;
+  //   - dès qu'elle clique une case de type, ce type est le sien (coché ou décoché) : plus aucune
+  //     collection ne le bouge ;
+  //   - une deuxième collection ajoute ses types aux cases vides — y compris le vide laissé par une
+  //     première collection décochée — sans rien remplacer ;
+  //   - une fiche existante ou dupliquée démarre sans suggestion : ses types sont les siens.
+  // Deux collections qui suggéreraient le même type (aucune aujourd'hui) : il appartient à la
+  // première cochée, la seconde trouve la case pleine et n'ajoute rien.
+  function typeInput(category) {
+    return els.categories.querySelector('input[name="categories"][value="' + category + '"]');
+  }
+
+  // Ce qu'une collection suggère : rien ou un type aujourd'hui (`category`) ; en liste, pour que
+  // la règle ne change pas le jour où collections.json en porte plusieurs
+  function collectionTypes(collectionId) {
+    var collection = collections.filter(function (c) { return c.id === collectionId; })[0];
+    return collection && collection.category ? [collection.category] : [];
+  }
+
+  function forgetSuggestion(category) {
+    suggestedTypes = suggestedTypes.filter(function (entry) { return entry.category !== category; });
+  }
+
   els.collections.addEventListener('change', function (event) {
     var collectionId = event.target.value;
-    var current = checked(els.category, 'category')[0] || null;
     if (event.target.checked) {
-      if (current) return;
-      var collection = collections.filter(function (c) { return c.id === collectionId; })[0];
-      if (!collection || !collection.category) return;
-      check(els.category, 'category', [collection.category]);
-      suggestedType = { collectionId: collectionId, category: collection.category };
+      collectionTypes(collectionId).forEach(function (category) {
+        var input = typeInput(category);
+        if (!input || input.checked) return;
+        input.checked = true;
+        suggestedTypes.push({ collectionId: collectionId, category: category });
+      });
     } else {
-      if (!suggestedType || suggestedType.collectionId !== collectionId || suggestedType.category !== current) return;
-      check(els.category, 'category', []);
-      suggestedType = null;
+      suggestedTypes.filter(function (entry) { return entry.collectionId === collectionId; }).forEach(function (entry) {
+        var input = typeInput(entry.category);
+        if (input && input.checked) input.checked = false;
+        forgetSuggestion(entry.category);
+      });
     }
     updatePublish();
   });
 
-  // Un clic sur une pastille de type ne vient que d'elle (le code coche sans cliquer) : le type est
-  // désormais le sien — même si elle reclique la valeur suggérée, ce qu'un `change` ne verrait pas
-  els.category.addEventListener('click', function (event) {
-    if (event.target.matches('input')) suggestedType = null;
+  // Un clic sur une case de type ne vient que d'elle (le code coche sans cliquer) : ce type est
+  // désormais le sien — même si elle le décoche puis le recoche, ce qu'un `change` seul ne dirait pas
+  els.categories.addEventListener('click', function (event) {
+    if (event.target.matches('input')) forgetSuggestion(event.target.value);
   });
-  els.category.addEventListener('change', updatePublish);
+  els.categories.addEventListener('change', updatePublish);
 
   // La description grandit avec le texte : pas d'ascenseur dans un ascenseur au téléphone
   function autosize(textarea) {
@@ -635,7 +660,7 @@
     delete piece.images;
     piece.availability = targetState();
     piece.photosLost = photos.some(function (photo) { return !photo.src; });
-    piece.suggestedType = suggestedType; // une suggestion en cours reste annulable après le rechargement
+    piece.suggestedTypes = suggestedTypes; // une suggestion en cours reste annulable après le rechargement
     try { window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(piece)); } catch (_) { /* stockage indisponible : tant pis */ }
   }
 
@@ -650,8 +675,12 @@
     els.reference.value = piece.reference || '';
     check(els.collections, 'collections', piece.collections || []);
     check(els.audience, 'audience', piece.audience ? [piece.audience] : []);
-    check(els.category, 'category', piece.category ? [piece.category] : []);
-    suggestedType = piece.suggestedType && piece.suggestedType.category === piece.category ? piece.suggestedType : null;
+    var restoredTypes = Array.isArray(piece.categories) ? piece.categories : [];
+    check(els.categories, 'categories', restoredTypes);
+    // Une suggestion ne survit que si son type est encore coché et sa collection aussi
+    suggestedTypes = (Array.isArray(piece.suggestedTypes) ? piece.suggestedTypes : []).filter(function (entry) {
+      return entry && restoredTypes.indexOf(entry.category) !== -1 && (piece.collections || []).indexOf(entry.collectionId) !== -1;
+    });
     els.desc.value = piece.desc || '';
     els.price.value = typeof piece.price === 'number' ? String(piece.price).replace('.', ',') : '';
     els.featured.checked = piece.featured === true;

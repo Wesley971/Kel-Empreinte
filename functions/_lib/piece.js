@@ -35,7 +35,7 @@ import { MAX_PHOTOS, nextPhotoPath, ownedPhotoPattern } from './photos.js';
 const COLLECTIONS_FILE = 'data/collections.json';
 
 // Ce que le formulaire envoie dans `piece` ; tout autre champ est refusé
-const PIECE_FIELDS = ['name', 'reference', 'category', 'audience', 'collections', 'desc', 'price', 'featured', 'images', 'availability'];
+const PIECE_FIELDS = ['name', 'reference', 'categories', 'audience', 'collections', 'desc', 'price', 'featured', 'images', 'availability'];
 const NEW_STATES = ['disponible', 'brouillon'];
 
 // Le marqueur qui dit à Cloudflare Pages de ne pas déployer un commit. Porté par la seule
@@ -56,6 +56,8 @@ const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.
 export function checkPieceBody(piece) {
   if (!isPlainObject(piece)) return refuse(400, 'Requête illisible : la fiche doit être un objet.');
   if ('promoPrice' in piece) return refuse(400, 'Le prix réduit ne se saisit pas encore : il arrive avec l\'historique de prix (KD-109).');
+  // Un formulaire d'avant KD-120 resté ouvert pendant le déploiement envoie encore `category`
+  if ('category' in piece) return refuse(400, 'La fiche a changé : rechargez la page, puis réessayez.');
   const unknown = Object.keys(piece).find((field) => PIECE_FIELDS.indexOf(field) === -1);
   if (unknown) return refuse(400, 'Champ inattendu dans la fiche : « ' + unknown + ' ».');
 
@@ -66,9 +68,17 @@ export function checkPieceBody(piece) {
   if (!isBlank(piece.reference) && typeof piece.reference !== 'string') return refuse(422, 'La référence doit être un texte.');
   if (out.reference && !catalog.normalizeReference(out.reference)) return refuse(422, 'La référence doit contenir au moins une lettre ou un chiffre.');
 
-  out.category = text(piece.category);
+  // Les types : une liste sans doublon, écrite dans l'ordre du vocabulaire quel que soit celui
+  // du formulaire (KD-120) ; vide pour un brouillon (la règle « au moins un » est dans humanCheck
+  // et validateProduct)
+  if (isBlank(piece.categories)) out.categories = [];
+  else if (Array.isArray(piece.categories) && piece.categories.every((id) => typeof id === 'string')) out.categories = piece.categories.slice();
+  else return refuse(422, 'Les types de la pièce doivent être une liste.');
+  if (out.categories.some((id) => !catalog.CATEGORIES.some((c) => c.id === id))) return refuse(422, 'Type de pièce inconnu.');
+  if (new Set(out.categories).size !== out.categories.length) return refuse(422, 'Un type de pièce figure deux fois.');
+  out.categories = catalog.sortCategories(out.categories);
+
   out.audience = text(piece.audience);
-  if (out.category && !catalog.CATEGORIES.some((c) => c.id === out.category)) return refuse(422, 'Type de pièce inconnu.');
   if (out.audience && !catalog.AUDIENCES.some((a) => a.id === out.audience)) return refuse(422, 'Public inconnu.');
 
   if (isBlank(piece.collections)) out.collections = [];
@@ -299,7 +309,7 @@ function assemble(previous, id, piece, images, availability, now) {
     id,
     reference: null,
     name: null,
-    category: null,
+    categories: [],
     audience: null,
     collections: [],
     availability,
@@ -317,7 +327,7 @@ function assemble(previous, id, piece, images, availability, now) {
   const next = {
     reference: piece.reference,
     name: piece.name,
-    category: piece.category,
+    categories: piece.categories,
     audience: piece.audience,
     collections: piece.collections,
     availability,
@@ -343,7 +353,7 @@ function assemble(previous, id, piece, images, availability, now) {
 function humanCheck(candidate, previous) {
   const state = candidate.availability;
   if (state === 'brouillon') return null;
-  if (!candidate.category || !candidate.audience) return 'Choisissez le type et le public de la pièce.';
+  if (!candidate.categories.length || !candidate.audience) return 'Choisissez le type et le public de la pièce.';
   if (state === 'disponible' && (!previous || previous.availability === 'brouillon')) {
     const blockers = catalog.saleBlockers(candidate);
     if (blockers.length) return catalog.describeSaleBlockers(blockers);

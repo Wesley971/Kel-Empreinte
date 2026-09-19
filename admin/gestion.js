@@ -242,13 +242,13 @@
     return row;
   }
 
-  // Référence · type · prix (barré + promo) — construit en DOM : rien de ce que Prescilia écrit
-  // ne passe par du HTML
+  // Référence · type(s) (« Boucles d'oreilles et bracelet ») · prix (barré + promo) — construit en DOM :
+  // rien de ce que Prescilia écrit ne passe par du HTML
   function fillMeta(el, product) {
     el.textContent = '';
     var parts = [];
     if (product.reference) parts.push(document.createTextNode(product.reference));
-    var type = catalog.categoryLabel(product.category);
+    var type = catalog.categoriesLabel(product);
     if (type) parts.push(document.createTextNode(type));
     if (catalog.hasPrice(product)) {
       var price = document.createElement('span');

@@ -1,11 +1,12 @@
 /* Boutique et pages pièce — comportements côté navigateur.
 
    /boutique/ : les cartes sont générées au déploiement (build.js), avec leurs critères en data-*
-   (data-audience, data-category, data-collections). Ce script ne fait que montrer ou masquer :
-   deux barres de puces cumulables (Public, Type), compteur par puce recalculé selon les autres
-   filtres actifs (jamais de zéro-résultat surprise), filtres actifs rappelés au-dessus de la
-   grille avec une croix, mention « Collection : … » à l'arrivée depuis l'accueil. L'état vit dans
-   l'URL (?public=femme&type=collier&collection=parures) : un filtrage se partage et survit au
+   (data-audience : une valeur ; data-category et data-collections : des listes séparées d'espaces,
+   une parure a plusieurs types — KD-120). Ce script ne fait que montrer ou masquer : deux barres
+   de puces cumulables (Public, Type), compteur par puce recalculé selon les autres filtres actifs
+   (jamais de zéro-résultat surprise), filtres actifs rappelés au-dessus de la grille avec une
+   croix, mention « Collection : … » à l'arrivée depuis l'accueil. L'état vit dans l'URL
+   (?public=femme&type=collier&collection=parures) : un filtrage se partage et survit au
    rechargement. Sans script, toutes les cartes sont visibles — rien n'est perdu.
 
    Page pièce : vignettes qui changent la grande photo, grande photo qui s'ouvre en plein écran
@@ -89,12 +90,20 @@
       render();
     }
 
-    // Une pièce « mixte » répond aux deux publics
-    function matchesValue(filter, cardValue, wanted) {
-      if (filter === 'audience') return cardValue === wanted || cardValue === 'mixte';
-      return cardValue === wanted;
+    // « a b c » contient-il ce jeton ? (les listes des attributs data-category et data-collections)
+    function hasToken(list, wanted) {
+      return (' ' + list + ' ').indexOf(' ' + wanted + ' ') !== -1;
     }
 
+    // Une pièce « mixte » répond aux deux publics ; une pièce à plusieurs types répond à chacun
+    function matchesValue(filter, cardValue, wanted) {
+      if (filter === 'audience') return cardValue === wanted || cardValue === 'mixte';
+      return hasToken(cardValue, wanted);
+    }
+
+    // data-audience porte une valeur ; data-category porte une LISTE de types séparés par des
+    // espaces malgré son nom au singulier (KD-120) : l'attribut est dérivé du nom du filtre, lui-même
+    // lié au paramètre d'URL `?type=` (PARAMS), le renommer casserait les liens partagés pour rien.
     function matchesGroup(card, filter, values) {
       if (!values.length) return true;
       var cardValue = card.getAttribute('data-' + filter) || '';
@@ -103,7 +112,7 @@
 
     function matchesCollection(card) {
       if (!collection) return true;
-      return (' ' + (card.getAttribute('data-collections') || '') + ' ').indexOf(' ' + collection + ' ') !== -1;
+      return hasToken(card.getAttribute('data-collections') || '', collection);
     }
 
     // override : { filter, values } — « combien de pièces si ce groupe valait ceci ? », pour les compteurs

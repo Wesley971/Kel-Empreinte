@@ -3,7 +3,9 @@
     "id": "herbier-jaune-velours",
     "reference": null,
     "name": "Herbier Jaune Velours",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
@@ -29,7 +31,9 @@
     "id": "transparente-cuivre-bordeaux",
     "reference": null,
     "name": "Transparente Cuivre & Bordeaux",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
@@ -55,7 +59,9 @@
     "id": "leopard-rose-degrade",
     "reference": null,
     "name": "Léopard Rose Dégradé",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
@@ -81,7 +87,9 @@
     "id": "orange-alveole-automne",
     "reference": null,
     "name": "Orange Alvéole Automne",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
@@ -107,7 +115,9 @@
     "id": "dorees-perle-emeraude",
     "reference": null,
     "name": "Dorées Perle Émeraude",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
@@ -133,7 +143,9 @@
     "id": "triple-cercle-turquoise",
     "reference": null,
     "name": "Triple Cercle Turquoise",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
@@ -159,7 +171,9 @@
     "id": "goutte-doree-malachite",
     "reference": null,
     "name": "Goutte Dorée Malachite",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
@@ -185,7 +199,9 @@
     "id": "triple-disque-corail",
     "reference": null,
     "name": "Triple Disque Corail",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
@@ -211,7 +227,9 @@
     "id": "herbier-perle-rouge",
     "reference": null,
     "name": "Herbier Perle Rouge",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
@@ -237,7 +255,9 @@
     "id": "violette-feuille-doree",
     "reference": null,
     "name": "Violette Feuille Dorée",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
@@ -263,7 +283,9 @@
     "id": "orange-fuchsia-organique",
     "reference": null,
     "name": "Orange Fuchsia Organique",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
@@ -289,7 +311,9 @@
     "id": "geometrique-paillettes",
     "reference": null,
     "name": "Géométrique Paillettes",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
@@ -315,7 +339,9 @@
     "id": "violette-fleurie",
     "reference": null,
     "name": "Violette Fleurie",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
@@ -341,7 +367,9 @@
     "id": "feuille-rose",
     "reference": null,
     "name": "Feuille Rose",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
@@ -367,7 +395,9 @@
     "id": "or-corail",
     "reference": null,
     "name": "Or Corail",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
@@ -393,7 +423,9 @@
     "id": "vert-rose",
     "reference": null,
     "name": "Vert & Rose",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
@@ -419,7 +451,9 @@
     "id": "blanc-vert",
     "reference": null,
     "name": "Blanc & Vert",
-    "category": "boucles-oreilles",
+    "categories": [
+      "boucles-oreilles"
+    ],
     "audience": "mixte",
     "collections": [],
     "availability": "disponible",
