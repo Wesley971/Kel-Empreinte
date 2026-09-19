@@ -11,8 +11,10 @@
    3. la règle complète du modèle, `catalog.validateProduct` — celle de build.js, aux mêmes
       messages : l'API n'écrit jamais un fichier que le build refuserait ;
    4. un seul commit (commitFiles) : les nouvelles photos, data/products.json, les photos
-      retirées. Le marqueur PAGES_SKIP dans le message d'un brouillon : rien à mettre en ligne,
-      et Cloudflare Pages n'a qu'un build à la fois.
+      retirées. Chaque enregistrement déploie, brouillon compris : un brouillon n'est nulle
+      part sur le site, mais ses photos doivent être servies pour que « Mes bijoux » et la
+      fiche les montrent — sans déploiement, Prescilia ne verrait jamais ce qu'elle vient
+      d'enregistrer (recette du 19/09/2026). Seule la suppression d'un brouillon ne déploie pas.
 
    Tout ce qui dépend de la liste (id libre, référence libre, pièce existante, état) se juge
    sur une lecture faite AU commit de tête ; si la branche avance entre cette lecture et
@@ -35,12 +37,13 @@ const COLLECTIONS_FILE = 'data/collections.json';
 const PIECE_FIELDS = ['name', 'reference', 'category', 'audience', 'collections', 'desc', 'price', 'featured', 'images', 'availability'];
 const NEW_STATES = ['disponible', 'brouillon'];
 
-// Le marqueur qui dit à Cloudflare Pages de ne pas déployer le commit d'un brouillon (un brouillon
-// n'est nulle part sur le site ; Pages n'a qu'un build à la fois, KD-72). Parmi les cinq formes
+// Le marqueur qui dit à Cloudflare Pages de ne pas déployer un commit. Porté par la seule
+// suppression d'un brouillon : rien à mettre en ligne ni à servir, et Pages n'a qu'un build à la
+// fois (KD-72). Un enregistrement, lui, déploie toujours (voir l'en-tête). Parmi les cinq formes
 // que Pages reconnaît, celle-ci et elle seule : les autres (« [CI Skip] »…) sont aussi lues par
-// GitHub Actions, qui sauterait alors le garde-fou du catalogue (.github/workflows/catalog-guard.yml)
-// sur chaque brouillon. Pages lit le message ENTIER, corps compris : un commit de code qui cite
-// ce marqueur n'est pas déployé non plus — githooks/commit-msg le refuse (KD-93, 18/09/2026).
+// GitHub Actions, qui sauterait alors le garde-fou du catalogue (.github/workflows/catalog-guard.yml).
+// Pages lit le message ENTIER, corps compris : un commit de code qui cite ce marqueur n'est pas
+// déployé non plus — githooks/commit-msg le refuse (KD-93, 18/09/2026).
 const PAGES_SKIP = '[CF-Pages-Skip]';
 
 const isBlank = (value) => value === undefined || value === null;
@@ -217,14 +220,13 @@ export async function savePiece(env, { id, piece, uploads }) {
     else list.unshift(candidate); // en tête du fichier : en tête de « Mes bijoux »
     files.push({ path: PRODUCTS_FILE, text: serializeProducts(list) });
 
-    const draft = candidate.availability === 'brouillon';
     try {
       const { commit } = await commitFiles(env, {
-        message: commitMessage(candidate, previous, uploadFields.length, draft),
+        message: commitMessage(candidate, previous, uploadFields.length),
         parent: head,
         files,
       });
-      return json({ product: candidate, commit, deploys: !draft });
+      return json({ product: candidate, commit, deploys: true });
     } catch (err) {
       if (err instanceof GitHubError && err.status === 409 && attempt === 1) continue;
       throw err;
@@ -354,15 +356,14 @@ function parseCollectionIds(content) {
 }
 
 // Sujet en anglais comme le reste de l'historique ; le corps dit d'où vient la modification.
-// Un brouillon porte PAGES_SKIP : Cloudflare Pages ne lance pas de build.
-function commitMessage(product, previous, uploaded, draft) {
+// Jamais de marqueur ici : un enregistrement déploie, même en brouillon (ses photos).
+function commitMessage(product, previous, uploaded) {
   const photos = uploaded ? ', ' + uploaded + ' photo' + (uploaded > 1 ? 's' : '') + ' ajoutée' + (uploaded > 1 ? 's' : '') : '';
-  const skip = draft ? ' ' + PAGES_SKIP : '';
   if (!previous) {
-    return 'content(catalog): add "' + product.name + '"' + skip + '\n\n' +
+    return 'content(catalog): add "' + product.name + '"\n\n' +
       'Pièce ajoutée via l\'espace de gestion (' + product.availability + photos + ').';
   }
   const transition = previous.availability !== product.availability ? ', ' + previous.availability + ' → ' + product.availability : '';
-  return 'content(catalog): update "' + product.name + '"' + skip + '\n\n' +
+  return 'content(catalog): update "' + product.name + '"\n\n' +
     'Fiche modifiée via l\'espace de gestion (' + product.availability + transition + photos + ').';
 }
