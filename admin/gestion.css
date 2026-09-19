@@ -411,7 +411,8 @@ body {
 
 .kel-row-meta,
 .kel-row-note,
-.kel-row-hint {
+.kel-row-hint,
+.kel-row-pending {
   font-size: 13px;
   line-height: 1.4;
   color: var(--ink-muted);
@@ -425,7 +426,7 @@ body {
 .kel-row[data-availability="disponible"] .kel-row-note,
 .kel-row[data-availability="reservee"] .kel-row-note { color: var(--amber-deep); }
 
-.kel-row-hint { font-style: italic; }
+.kel-row-hint, .kel-row-pending { font-style: italic; }
 
 /* Le refus de l'API explique pourquoi le geste a échoué : il doit se voir. Même signal que le bloc
    d'erreur de page (filet rouge à gauche, surface distincte), plus un pictogramme « ! » dessiné en
@@ -757,7 +758,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .kel-status-dot,
   .kel-row[aria-busy="true"] .kel-state,
-  .kel-row[aria-busy="true"] .kel-quick { animation: none; }
+  .kel-row[aria-busy="true"] .kel-quick,
+  .kel-photo[aria-busy="true"] .kel-photo-state { animation: none; }
 }
 
 @media (min-width: 640px) {
@@ -853,7 +855,22 @@ body {
 }
 .kel-photo:first-child { border: 2px solid var(--terra); }
 .kel-photo-img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.kel-photo[aria-busy="true"] .kel-photo-img { opacity: 0.4; }
+
+/* La case sans image : « Préparation… » le temps du décodage, « Photo en cours de mise en ligne »
+   quand l'enregistrement est fait mais que le build n'a pas encore servi le fichier */
+.kel-photo-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--ink-muted);
+}
+.kel-photo[aria-busy="true"] .kel-photo-state { animation: kel-pulse 1s ease-in-out infinite; }
 
 .kel-photo-badge {
   position: absolute;

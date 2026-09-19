@@ -216,6 +216,14 @@
       img.loading = 'lazy';
       img.width = 52;
       img.height = 52;
+      // Pas encore servie (le build suit chaque enregistrement, brouillon compris) : la case garde
+      // son fond et la ligne le dit, plutôt qu'une image cassée (recette du 19/09)
+      img.addEventListener('error', function () {
+        img.remove();
+        var pending = row.querySelector('.kel-row-pending');
+        pending.textContent = 'Photo en cours de mise en ligne.';
+        show(pending);
+      });
       row.querySelector('.kel-row-photo').appendChild(img);
     }
 

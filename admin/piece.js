@@ -33,6 +33,7 @@
   var WEBP_QUALITY = 0.82;
   var JPEG_QUALITY = 0.85;
   var MAX_PHOTOS = 10;
+  var PHOTO_PENDING = 'Photo en cours de mise en ligne'; // servie au prochain déploiement, 1 à 2 min
   var catalog = window.KelCatalog;
   var admin = window.KelAdmin;
 
@@ -238,10 +239,26 @@
     photos.forEach(function (photo, index) {
       var item = els.photoTemplate.content.firstElementChild.cloneNode(true);
       var img = item.querySelector('.kel-photo-img');
-      img.src = photo.preview || ('/' + catalog.normalizeImagePath(photo.src));
+      var state = item.querySelector('.kel-photo-state');
       img.alt = photo.alt || photo.name || '';
+      if (photo.busy) {
+        // Pas de src tant que la photo se prépare : une image sans adresse n'affiche rien — ni
+        // glyphe cassé, ni requête vers /undefined (recette du 19/09)
+        item.setAttribute('aria-busy', 'true');
+        img.hidden = true;
+        state.textContent = 'Préparation…';
+        state.hidden = false;
+      } else {
+        img.src = photo.preview || ('/' + catalog.normalizeImagePath(photo.src));
+        // Enregistrée mais pas encore servie (le build suit chaque enregistrement) : un état, pas
+        // une image cassée. KD-82 rendra cette attente visible depuis la liste.
+        img.addEventListener('error', function () {
+          img.hidden = true;
+          state.textContent = PHOTO_PENDING;
+          state.hidden = false;
+        });
+      }
       item.querySelector('.kel-photo-badge').hidden = index !== 0;
-      if (photo.busy) item.setAttribute('aria-busy', 'true');
       item.querySelector('.kel-photo-first').addEventListener('click', function () {
         photos.splice(0, 0, photos.splice(index, 1)[0]);
         touched();
