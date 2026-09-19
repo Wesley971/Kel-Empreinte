@@ -258,7 +258,8 @@
     return row;
   }
 
-  // Référence · type(s) (« Boucles d'oreilles et bracelet ») · prix (barré + promo) — construit en DOM :
+  // Référence · type(s) (« Boucles d'oreilles et bracelet ») · prix (barré + réduit, la règle des 30 jours de
+  // catalog.js — KD-109) — construit en DOM :
   // rien de ce que Prescilia écrit ne passe par du HTML
   function fillMeta(el, product) {
     el.textContent = '';
@@ -268,7 +269,7 @@
     if (type) parts.push(document.createTextNode(type));
     if (catalog.hasPrice(product)) {
       var price = document.createElement('span');
-      if (catalog.hasPromo(product)) {
+      if (catalog.showsStrikethrough(product)) {
         var old = document.createElement('s');
         old.textContent = catalog.formatOriginalPrice(product);
         price.appendChild(old);

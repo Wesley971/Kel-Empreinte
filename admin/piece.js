@@ -65,6 +65,8 @@
     desc: document.getElementById('desc'),
     price: document.getElementById('price'),
     priceError: document.getElementById('price-error'),
+    promoPrice: document.getElementById('promo-price'),
+    promoPriceError: document.getElementById('promo-price-error'),
     featured: document.getElementById('featured'),
     publish: document.getElementById('publish'),
     publishHelp: document.getElementById('publish-help'),
@@ -215,7 +217,8 @@
       check(els.audience, 'audience', source.audience ? [source.audience] : []);
       check(els.categories, 'categories', source.categories || []); // les siens : aucune suggestion en cours
       els.desc.value = source.desc || '';
-      els.price.value = typeof source.price === 'number' ? String(source.price).replace('.', ',') : '';
+      els.price.value = amountText(source.price);
+      els.promoPrice.value = amountText(source.promoPrice);
       els.featured.checked = copy ? false : source.featured === true;
       photos = copy ? [] : (source.images || []).map(function (image) { return { src: image.src, alt: image.alt }; });
     }
@@ -384,8 +387,14 @@
     return Number(cleaned);
   }
 
+  // « 12,50 » dans le champ pour 12.5 dans le fichier ; vide sans prix
+  function amountText(amount) {
+    return typeof amount === 'number' ? String(amount).replace('.', ',') : '';
+  }
+
   function candidate() {
     var price = parsePrice(els.price.value);
+    var promoPrice = parsePrice(els.promoPrice.value);
     return {
       name: els.name.value.trim(),
       reference: els.reference.value.trim() || null,
@@ -394,6 +403,7 @@
       collections: checked(els.collections, 'collections'),
       desc: els.desc.value,
       price: typeof price === 'number' && !isNaN(price) ? price : null,
+      promoPrice: typeof promoPrice === 'number' && !isNaN(promoPrice) ? promoPrice : null,
       featured: els.featured.checked,
       images: photos.filter(function (photo) { return !photo.busy; }).map(function (photo) { return photo.src ? { src: photo.src } : { upload: 'photo' }; })
     };
@@ -481,6 +491,19 @@
     return !message;
   }
 
+  // Le prix réduit (KD-109) : des chiffres, et sous le prix — la même phrase que l'API (humanCheck).
+  // Qu'il s'affiche barré ou non ne se juge pas ici : c'est l'historique de prix, la mention sous le
+  // champ le dit.
+  function checkPromoPrice() {
+    var promoPrice = parsePrice(els.promoPrice.value);
+    var price = parsePrice(els.price.value);
+    var message = '';
+    if (typeof promoPrice === 'number' && isNaN(promoPrice)) message = 'Le prix réduit s\'écrit en chiffres, par exemple 20 ou 12,50.';
+    else if (typeof promoPrice === 'number' && !(typeof price === 'number' && !isNaN(price) && promoPrice < price)) message = 'Le prix réduit doit être inférieur au prix.';
+    setFieldError(els.promoPrice, els.promoPriceError, message);
+    return !message;
+  }
+
   function touched() { dirty = true; }
 
   els.form.addEventListener('input', touched);
@@ -488,7 +511,10 @@
   els.name.addEventListener('input', function () { if (!els.nameError.hidden) checkName(); updatePublish(); });
   els.name.addEventListener('blur', checkName);
   els.reference.addEventListener('input', checkReference);
-  els.price.addEventListener('input', function () { checkPrice(); updatePublish(); });
+  els.price.addEventListener('input', function () { checkPrice(); if (!els.promoPriceError.hidden) checkPromoPrice(); updatePublish(); });
+  els.promoPrice.addEventListener('input', function () { if (!els.promoPriceError.hidden) checkPromoPrice(); });
+  els.promoPrice.addEventListener('blur', checkPromoPrice);
+  els.price.addEventListener('blur', checkPromoPrice); // un prix abaissé sous le réduit se voit en quittant le champ
   els.audience.addEventListener('change', updatePublish);
 
   // Les types suggérés par les collections (collections.json, `category`) : une suggestion qui
@@ -566,7 +592,7 @@
     event.preventDefault();
     if (saving) return;
     hide(els.failure);
-    var ok = [checkName(), checkReference(), checkPrice()].every(Boolean);
+    var ok = [checkName(), checkReference(), checkPrice(), checkPromoPrice()].every(Boolean);
     if (!ok) {
       var firstError = els.form.querySelector('.kel-field--invalid input');
       if (firstError) firstError.focus();
@@ -682,7 +708,8 @@
       return entry && restoredTypes.indexOf(entry.category) !== -1 && (piece.collections || []).indexOf(entry.collectionId) !== -1;
     });
     els.desc.value = piece.desc || '';
-    els.price.value = typeof piece.price === 'number' ? String(piece.price).replace('.', ',') : '';
+    els.price.value = amountText(piece.price);
+    els.promoPrice.value = amountText(piece.promoPrice);
     els.featured.checked = piece.featured === true;
     if (piece.availability) { check(els.publish, 'availability', [piece.availability]); userChoseState = true; }
     dirty = true;

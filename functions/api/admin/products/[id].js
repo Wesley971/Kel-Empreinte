@@ -3,8 +3,9 @@
 
    PUT et DELETE (KD-93) : le formulaire de pièce. PUT reçoit le même JSON que POST
    ({ piece, photos }) et réécrit la fiche entière ; l'état ne s'y change pas
-   (sauf brouillon → en vente), `reservedUntil`, `sale`, `createdAt` et `id` sont préservés
-   (un brouillon qui passe en vente, par PUT ou PATCH, prend ce jour comme `createdAt`).
+   (sauf brouillon → en vente), `reservedUntil`, `sale`, `createdAt`, `priceHistory` et `id` sont
+   préservés (un brouillon qui passe en vente, par PUT ou PATCH, prend ce jour comme `createdAt`
+   et sa première entrée d'historique de prix — KD-109 ; jamais reçus, écrits par la machine).
    DELETE ne s'applique qu'à un brouillon jamais publié : la pièce et ses photos disparaissent,
    commit marqué « ne pas déployer ». Règles et réponses : functions/_lib/piece.js.
 

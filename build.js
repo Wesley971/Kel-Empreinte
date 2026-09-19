@@ -553,7 +553,7 @@ function renderPieceHead(product) {
     '<link rel="canonical" href="' + esc(url) + '">'
   ];
   if (!catalog.isSold(product) && catalog.hasPrice(product)) {
-    var amount = catalog.hasPromo(product) ? product.promoPrice : product.price;
+    var amount = catalog.effectivePrice(product); // le prix pratiqué, barré ou non (KD-109)
     lines.push('<meta property="product:price:amount" content="' + amount + '">');
     lines.push('<meta property="product:price:currency" content="EUR">');
   }
@@ -612,7 +612,7 @@ function renderPieceArticle(product, collections) {
     lines.push('    </div>');
   } else {
     var price = '    <p class="piece-price">';
-    if (catalog.hasPromo(product)) price += '<s class="piece-price-old">' + esc(catalog.formatOriginalPrice(product)) + '</s>';
+    if (catalog.showsStrikethrough(product)) price += '<s class="piece-price-old">' + esc(catalog.formatOriginalPrice(product)) + '</s>';
     price += esc(catalog.formatPrice(product)) + '</p>';
     lines.push(price);
     if (catalog.isReserved(product)) lines.push('    <p class="piece-state piece-state--reserved" data-while-reserved>' + esc(catalog.formatReservedUntil(product)) + '</p>');

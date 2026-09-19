@@ -13,6 +13,7 @@
     "availability": "disponible",
     "price": 16,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },
@@ -41,6 +42,7 @@
     "availability": "disponible",
     "price": 17,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },
@@ -69,6 +71,7 @@
     "availability": "disponible",
     "price": 18,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },
@@ -97,6 +100,7 @@
     "availability": "disponible",
     "price": 18,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },
@@ -125,6 +129,7 @@
     "availability": "disponible",
     "price": 17,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },
@@ -153,6 +158,7 @@
     "availability": "disponible",
     "price": 20,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },
@@ -181,6 +187,7 @@
     "availability": "disponible",
     "price": 14,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },
@@ -209,6 +216,7 @@
     "availability": "disponible",
     "price": 20,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },
@@ -237,6 +245,7 @@
     "availability": "disponible",
     "price": 17,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },
@@ -265,6 +274,7 @@
     "availability": "disponible",
     "price": 18,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },
@@ -293,6 +303,7 @@
     "availability": "disponible",
     "price": 16,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },
@@ -321,6 +332,7 @@
     "availability": "disponible",
     "price": 17,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },
@@ -349,6 +361,7 @@
     "availability": "disponible",
     "price": 24,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },
@@ -377,6 +390,7 @@
     "availability": "disponible",
     "price": 22,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },
@@ -405,6 +419,7 @@
     "availability": "disponible",
     "price": 24,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },
@@ -433,6 +448,7 @@
     "availability": "disponible",
     "price": 22,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },
@@ -461,6 +477,7 @@
     "availability": "disponible",
     "price": 22,
     "promoPrice": null,
+    "priceHistory": [],
     "customization": {
       "options": []
     },

@@ -1,12 +1,12 @@
 /* Le catalogue vu des Functions — lire data/products.json sur GitHub, le modifier, le réécrire.
 
    Le fichier est la source de vérité du site et il est relu par des humains dans l'historique
-   git : une écriture ne doit changer que ce qu'on a voulu changer. JSON.stringify(…, null, 2)
-   reproduit l'indentation et l'ordre des clés, mais transforme les espaces insécables écrits
-   « \u00a0 » dans le fichier en caractères invisibles ; on les ré-échappe pour que le
-   round-trip lecture → écriture soit identique octet pour octet (couvert par un test sur le
-   vrai fichier). Toute autre normalisation (fichier indenté autrement à la main) se produira
-   une fois, au premier enregistrement, et sera visible dans le diff de ce commit.
+   git : une écriture ne doit changer que ce qu'on a voulu changer. La sérialisation est celle de
+   catalog.js (serializeProducts, partagée avec les scripts du dépôt) : indentation et ordre des
+   clés reproduits, espaces insécables ré-échappés « \u00a0 », round-trip lecture → écriture
+   identique octet pour octet (couvert par un test sur le vrai fichier). Toute autre normalisation
+   (fichier indenté autrement à la main) se produira une fois, au premier enregistrement, et sera
+   visible dans le diff de ce commit.
 
    Les règles d'état (quand une pièce peut passer « en vente », quelles transitions existent, la
    réservation de 14 jours à l'heure de Paris) viennent de catalog.js, le module partagé avec le
@@ -33,9 +33,6 @@ export const formatDay = catalog.formatDay;
 export const todayInParis = catalog.todayInParis;
 export const reservationEnd = catalog.reservationEnd;
 
-const NBSP = String.fromCharCode(0xa0); // le caractère lui-même, écrit ainsi pour rester visible
-const NBSP_ESCAPED = '\\u00a0';
-
 // SyntaxError dans les deux cas (JSON invalide, ou valide mais pas une liste) : pour
 // catalogFailure, c'est la même situation — le fichier du dépôt n'est pas lisible tel quel.
 export function parseProducts(content) {
@@ -44,10 +41,7 @@ export function parseProducts(content) {
   return products;
 }
 
-// Fin de fichier : un seul saut de ligne, comme le fichier du dépôt (LF).
-export function serializeProducts(products) {
-  return JSON.stringify(products, null, 2).split(NBSP).join(NBSP_ESCAPED) + '\n';
-}
+export const serializeProducts = catalog.serializeProducts;
 
 export function findProduct(products, id) {
   return products.find((product) => product && product.id === id) || null;
@@ -60,7 +54,9 @@ export function findProduct(products, id) {
 // `today` : le jour à Paris — un brouillon qui passe en vente reçoit ce jour comme `createdAt`,
 // la date de première mise en vente (le nom du champ est historique) ; toute autre transition
 // garde la date, une pièce retirée puis remise en vente n'est pas une nouveauté. Même règle dans
-// piece.js (assemble) pour le passage en vente depuis la fiche.
+// piece.js (assemble) pour le passage en vente depuis la fiche. Ce jour-là commence aussi
+// l'historique de prix (KD-109) : la première entrée est le prix pratiqué dès la mise en vente —
+// sans elle, build.js refuserait la pièce (un prix pratiqué sans son entrée).
 export function withState(product, availability, { reservedUntil, sale, today } = {}) {
   const published = product.availability === 'brouillon' && availability !== 'brouillon';
   const updated = {};
@@ -72,6 +68,7 @@ export function withState(product, availability, { reservedUntil, sale, today } 
       if (reservedUntil) updated.reservedUntil = reservedUntil;
     }
     if (key === 'createdAt' && published && today) updated.createdAt = today;
+    if (key === 'priceHistory' && published && today) updated.priceHistory = catalog.recordPrice([], catalog.effectivePrice(product), today);
   });
   if (sale) updated.sale = sale;
   return updated;

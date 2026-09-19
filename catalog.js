@@ -20,6 +20,11 @@
    La validation du modèle (validateProduct) vit ici aussi depuis KD-93 : le formulaire de gestion,
    l'API et build.js jugent une pièce avec la même règle et les mêmes messages.
 
+   Le prix barré (KD-109) obéit à la règle des 30 jours : la référence barrée est le prix le plus
+   bas pratiqué pendant les 30 jours qui précèdent la baisse, lue dans l'historique de prix que
+   l'API écrit à chaque changement (recordPrice, referencePrice). Sans référence démontrable, rien
+   n'est barré — le site, l'écran de gestion et le build appliquent la même lecture.
+
    Le numéro WhatsApp n'est pas écrit ici : build.js le lit dans data/site.json et l'injecte par
    configure() avant de rendre les liens (KD-116).
    Les espaces insécables s'y écrivent \u00a0 et jamais &nbsp; : les valeurs produites ici
@@ -194,9 +199,24 @@
     return typeof product.price === 'number' && product.price >= 0;
   }
 
-  // Prix barré : un prix promotionnel n'a de sens que sous le prix de référence.
-  function hasPromo(product) {
+  // Un prix réduit est posé : un nombre sous le prix (validateProduct refuse le reste)
+  function hasReducedPrice(product) {
     return hasPrice(product) && typeof product.promoPrice === 'number' && product.promoPrice >= 0 && product.promoPrice < product.price;
+  }
+
+  // Le prix pratiqué : le prix réduit s'il est posé, sinon le prix ; null sans prix
+  function effectivePrice(product) {
+    if (hasReducedPrice(product)) return product.promoPrice;
+    return hasPrice(product) ? product.price : null;
+  }
+
+  // Un prix barré s'affiche : un prix réduit est posé ET l'historique démontre une référence plus
+  // haute (voir « Historique de prix »). Un prix réduit sans référence se montre seul, sans barré,
+  // sans message — jamais une fausse remise par accident (KD-109).
+  function showsStrikethrough(product) {
+    if (!hasReducedPrice(product)) return false;
+    var reference = referencePrice(product);
+    return reference !== null && reference > product.promoPrice;
   }
 
   // L'accueil ne montre que ce qui s'achète tout de suite.
@@ -409,6 +429,60 @@
     return allowedTransitions(product, now).indexOf(target) !== -1;
   }
 
+  /* ── Historique de prix : la règle des 30 jours (KD-109) ──
+
+     Toute annonce de réduction — un simple prix barré — doit indiquer le prix le plus bas pratiqué
+     au cours des 30 jours précédant la réduction (art. L112-1-1 du code de la consommation,
+     directive « Omnibus »). `priceHistory` porte, sur chaque pièce, les prix pratiqués :
+     [{ amount, from: « AAAA-MM-JJ » }, …] du plus ancien au plus récent, chaque entrée en vigueur
+     jusqu'à la suivante. L'API l'écrit à chaque changement du prix pratiqué (recordPrice), à
+     partir de la première mise en vente — le prix d'un brouillon n'est pratiqué par personne.
+     Prescilia ne le voit jamais et ne saisit aucune date ; la preuve, c'est l'historique git.
+     Rien n'est purgé : ~40 octets par entrée, l'enjeu de taille est nul, la référence d'un prix
+     barré ne bouge jamais (décision du 19/09/2026). Un historique vide : la pratique antérieure
+     est inconnue, il n'y a pas de référence. */
+
+  var REFERENCE_DAYS = 30;
+
+  // L'historique après un enregistrement, sans modifier l'original. Rien à écrire sans prix, ni
+  // quand le prix pratiqué est celui de la dernière entrée. Un second changement le même jour
+  // remplace l'entrée du jour (les jours, pas les heures, font l'historique) — et l'efface si le
+  // montant revient à celui d'avant : une correction du jour n'est pas un changement.
+  function recordPrice(history, amount, today) {
+    var entries = Array.isArray(history) ? history.slice() : [];
+    if (!isAmount(amount)) return entries;
+    var last = entries.length ? entries[entries.length - 1] : null;
+    if (last && last.amount === amount) return entries;
+    if (last && last.from === today) {
+      entries.pop();
+      var before = entries.length ? entries[entries.length - 1] : null;
+      if (before && before.amount === amount) return entries;
+    }
+    entries.push({ amount: amount, from: today });
+    return entries;
+  }
+
+  // Le prix de référence : le plus bas des prix en vigueur pendant les 30 jours qui précèdent la
+  // date d'effet du prix actuel (le `from` de la dernière entrée), celle-ci exclue — figé à ce
+  // jour-là, jamais recalculé. null si l'historique est vide ou ne couvre pas toute la fenêtre :
+  // une pièce mise en vente hier n'a pas de référence, quel que soit son prix d'hier. À chaque
+  // nouvelle baisse, la fenêtre contient la baisse précédente : la référence ne peut que
+  // descendre. Suppose l'historique validé (dates lisibles, strictement croissantes).
+  function referencePrice(product) {
+    var history = Array.isArray(product.priceHistory) ? product.priceHistory : [];
+    if (!history.length) return null;
+    var current = history[history.length - 1];
+    var windowStart = addDays(current.from, -REFERENCE_DAYS);
+    if (!windowStart || history[0].from > windowStart) return null;
+    var lowest = null;
+    for (var i = 0; i < history.length - 1; i++) {
+      // En vigueur de son `from` (inclus) au `from` de la suivante (exclu) : dans la fenêtre dès
+      // que la suivante commence après le début de celle-ci
+      if (history[i + 1].from > windowStart && (lowest === null || history[i].amount < lowest)) lowest = history[i].amount;
+    }
+    return lowest;
+  }
+
   /* ── Prix et textes ── */
 
   // « 50 € », « 12,50 € » : entier tel quel, sinon deux décimales à la française.
@@ -418,15 +492,15 @@
     return text + '\u00a0€';
   }
 
-  // Le prix affiché : le prix promotionnel s'il y en a un, sinon le prix.
+  // Le prix affiché : le prix pratiqué (le prix réduit s'il est posé, sinon le prix).
   function formatPrice(product) {
-    if (hasPromo(product)) return formatAmount(product.promoPrice);
-    return hasPrice(product) ? formatAmount(product.price) : '';
+    var amount = effectivePrice(product);
+    return amount === null ? '' : formatAmount(amount);
   }
 
-  // Le prix barré, uniquement en promotion.
+  // Le prix barré : la référence des 30 jours, seulement quand elle démontre la baisse.
   function formatOriginalPrice(product) {
-    return hasPromo(product) ? formatAmount(product.price) : '';
+    return showsStrikethrough(product) ? formatAmount(referencePrice(product)) : '';
   }
 
   // Le champ est un texte libre ; l'espace insécable évite un retour à la ligne entre
@@ -560,7 +634,7 @@
       lines.push(indent + '    <a class="shop-card-similar cta-link" href="' + escapeHtml(buildSimilarPieceLink(product)) + '" target="_blank" rel="noopener noreferrer">Une pièce semblable ?</a>');
     } else {
       var price = indent + '    <p class="shop-card-price">';
-      if (hasPromo(product)) price += '<s class="shop-card-price-old">' + escapeHtml(formatOriginalPrice(product)) + '</s> ';
+      if (showsStrikethrough(product)) price += '<s class="shop-card-price-old">' + escapeHtml(formatOriginalPrice(product)) + '</s> ';
       price += '<span class="shop-card-price-now">' + escapeHtml(formatPrice(product)) + '</span></p>';
       lines.push(price);
       if (isReserved(product)) lines.push(indent + '    <p class="shop-card-until" data-while-reserved>' + escapeHtml(formatReservedUntil(product, true)) + '</p>');
@@ -647,8 +721,8 @@
   var ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
   var KNOWN_FIELDS = ['id', 'reference', 'name', 'categories', 'audience', 'collections', 'availability', 'reservedUntil',
-    'price', 'promoPrice', 'customization', 'desc', 'materials', 'dimensions', 'images', 'featured', 'featuredOrder',
-    'createdAt', 'sale'];
+    'price', 'promoPrice', 'priceHistory', 'customization', 'desc', 'materials', 'dimensions', 'images', 'featured',
+    'featuredOrder', 'createdAt', 'sale'];
   // Champs retirés du modèle : leur présence dit que le fichier n'a pas été migré — jamais acceptée
   // en silence. Ceux du modèle v1 (KD-97), puis « category », une valeur, devenu la liste
   // « categories » (KD-120). La valeur dit ce qu'il fallait faire.
@@ -778,7 +852,48 @@
     }
     if (!isBlank(product.promoPrice)) {
       if (!isAmount(product.promoPrice)) report(where + ' : « promoPrice » doit être un nombre positif');
-      else if (!isAmount(product.price) || product.promoPrice >= product.price) report(where + ' : le prix promotionnel doit être inférieur au prix');
+      else if (!isAmount(product.price) || product.promoPrice >= product.price) report(where + ' : le prix réduit doit être inférieur au prix');
+    }
+
+    // Historique de prix (KD-109) : toujours présent, cohérent, et jamais écrit à la main sans son
+    // entrée — un prix changé par commit sans l'historique fait échouer le build, c'est voulu. Vide
+    // sur un brouillon (l'historique commence à la première mise en vente) ; vide ailleurs = pratique
+    // antérieure inconnue, aucune référence, rien de barré. Un barré injustifié n'est jamais une
+    // erreur : il ne s'affiche pas, c'est tout.
+    if (isBlank(product.priceHistory)) {
+      report(where + ' : champ « priceHistory » manquant — une liste, vide si le prix pratiqué avant n\'est pas connu (KD-109)');
+    } else if (!Array.isArray(product.priceHistory)) {
+      report(where + ' : « priceHistory » doit être une liste de { amount, from }');
+    } else {
+      var history = product.priceHistory;
+      var historyOk = true;
+      history.forEach(function(entry, i) {
+        var entryWhere = where + ', prix n° ' + (i + 1);
+        if (!isPlainObject(entry)) {
+          report(entryWhere + ' : entrée invalide — { amount, from } attendu');
+          historyOk = false;
+          return;
+        }
+        checkKnownKeys(entry, ['amount', 'from'], entryWhere);
+        if (!isAmount(entry.amount)) report(entryWhere + ' : « amount » doit être un nombre positif');
+        if (!isIsoDate(entry.from)) {
+          report(entryWhere + ' : « from » doit être une date AAAA-MM-JJ');
+          historyOk = false;
+        } else if (isFutureDay(entry.from, ctx.now)) {
+          report(entryWhere + ' : « from » est dans le futur (' + entry.from + ', nous sommes le ' + todayInParis(ctx.now) + ' à Paris)');
+        } else if (i && isIsoDate(history[i - 1].from) && entry.from <= history[i - 1].from) {
+          report(entryWhere + ' : « from » doit être postérieur au prix précédent (' + history[i - 1].from + ')');
+        }
+      });
+      if (draft && history.length) {
+        report(where + ' : un brouillon n\'a pas d\'historique de prix — il commence à la première mise en vente');
+      } else if (historyOk && history.length) {
+        var practiced = effectivePrice(product);
+        var lastEntry = history[history.length - 1];
+        if (practiced !== null && isAmount(lastEntry.amount) && lastEntry.amount !== practiced) {
+          report(where + ' : la dernière entrée de « priceHistory » (' + lastEntry.amount + ') n\'est pas le prix pratiqué (' + practiced + ') — un prix ne se change pas sans son entrée d\'historique');
+        }
+      }
     }
 
     // Date de fin de réservation : exactement quand la pièce est réservée
@@ -861,6 +976,16 @@
     return problems;
   }
 
+  // data/products.json tel que le dépôt l'écrit : 2 espaces, les espaces insécables ré-échappés
+  // \u00a0 (JSON.stringify les écrirait tels quels), un seul saut de ligne final (LF). Le même
+  // octet pour octet pour les Functions et les scripts du dépôt : le diff d'un commit ne contient
+  // que la modification voulue.
+  var NBSP = String.fromCharCode(0xa0);
+  var NBSP_ESCAPED = String.fromCharCode(92) + 'u00a0'; // écrit ainsi pour ne pas être un \u00a0 lui-même
+  function serializeProducts(products) {
+    return JSON.stringify(products, null, 2).split(NBSP).join(NBSP_ESCAPED) + '\n';
+  }
+
   return {
     configure: configure,
     AVAILABILITIES: AVAILABILITIES,
@@ -885,7 +1010,12 @@
     isRetired: isRetired,
     hasPhoto: hasPhoto,
     hasPrice: hasPrice,
-    hasPromo: hasPromo,
+    hasReducedPrice: hasReducedPrice,
+    effectivePrice: effectivePrice,
+    showsStrikethrough: showsStrikethrough,
+    REFERENCE_DAYS: REFERENCE_DAYS,
+    recordPrice: recordPrice,
+    referencePrice: referencePrice,
     isVisibleOnHome: isVisibleOnHome,
     isVisibleInShop: isVisibleInShop,
     displayBlockers: displayBlockers,
@@ -900,6 +1030,7 @@
     ID_PATTERN: ID_PATTERN,
     KNOWN_FIELDS: KNOWN_FIELDS,
     validateProduct: validateProduct,
+    serializeProducts: serializeProducts,
     slugify: slugify,
     makeId: makeId,
     referenceOwner: referenceOwner,

@@ -115,6 +115,19 @@
         <span class="kel-field-error" id="price-error" role="alert" hidden></span>
       </label>
 
+      <!-- 11. Prix réduit (KD-109) : sous le prix. Barré en boutique seulement quand l'historique de
+           prix démontre la référence (catalog.js, règle des 30 jours) — la mention le dit avant qu'elle
+           touche au champ : un prix réduit affiché seul ressemblerait sinon à une saisie perdue. -->
+      <label class="kel-field">
+        <span class="kel-field-label">Prix réduit</span>
+        <span class="kel-field-amount">
+          <input type="text" inputmode="decimal" id="promo-price" name="promoPrice" autocomplete="off" placeholder="ex. 20" />
+          <span class="kel-field-unit">€</span>
+        </span>
+        <span class="kel-field-help">Le prix barré n'apparaît en boutique que si la pièce a été en vente au moins 30 jours à son prix. Sinon, seul le prix réduit s'affiche : c'est normal, tout est bien enregistré.</span>
+        <span class="kel-field-error" id="promo-price-error" role="alert" hidden></span>
+      </label>
+
       <!-- 12. Mise en avant -->
       <label class="kel-switch">
         <input type="checkbox" id="featured" name="featured" />

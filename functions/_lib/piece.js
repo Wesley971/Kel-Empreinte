@@ -3,8 +3,8 @@
 
    Une fiche arrive avec ses photos, en JSON (voir photos.js). Ce qu'on en fait, dans l'ordre :
 
-   1. la forme du corps — champs connus, types simples, `promoPrice` refusé tant que KD-109
-      n'existe pas (aucun prix réduit ne s'enregistre sans historique de prix) ;
+   1. la forme du corps — champs connus, types simples ; le prix réduit (`promoPrice`) se saisit
+      depuis KD-109, c'est l'historique de prix qui décide s'il s'affiche barré ;
    2. ce que Prescilia peut avoir fait et qu'une phrase doit lui dire : pas de nom, une
       référence déjà portée par une autre pièce (nommée), une mise en vente sans photo ou sans
       prix — les mêmes règles que l'écran (catalog.js), l'API reste le filet ;
@@ -22,9 +22,11 @@
 
    L'état : une nouvelle pièce est « disponible » (par défaut) ou « brouillon » ; un brouillon
    modifié peut passer en vente ; une pièce publiée ne change pas d'état ici — c'est la liste
-   « Mes bijoux » (PATCH) qui réserve, vend, retire. `reservedUntil`, `sale`, `createdAt` et
-   `id` sont préservés côté serveur : le formulaire ne les envoie jamais — sauf `createdAt` d'un
-   brouillon qui passe en vente, fixé à ce jour (date de première mise en vente, voir assemble). */
+   « Mes bijoux » (PATCH) qui réserve, vend, retire. `reservedUntil`, `sale`, `createdAt`,
+   `priceHistory` et `id` sont préservés côté serveur : le formulaire ne les envoie jamais — sauf
+   `createdAt` d'un brouillon qui passe en vente, fixé à ce jour (date de première mise en vente,
+   voir assemble), et l'historique de prix, que la machine écrit seule (KD-109) : une entrée à la
+   première mise en vente, puis une à chaque changement du prix pratiqué (catalog.recordPrice). */
 
 import catalog from '../../catalog.js';
 import { json, error } from './http.js';
@@ -35,7 +37,7 @@ import { MAX_PHOTOS, nextPhotoPath, ownedPhotoPattern } from './photos.js';
 const COLLECTIONS_FILE = 'data/collections.json';
 
 // Ce que le formulaire envoie dans `piece` ; tout autre champ est refusé
-const PIECE_FIELDS = ['name', 'reference', 'categories', 'audience', 'collections', 'desc', 'price', 'featured', 'images', 'availability'];
+const PIECE_FIELDS = ['name', 'reference', 'categories', 'audience', 'collections', 'desc', 'price', 'promoPrice', 'featured', 'images', 'availability'];
 const NEW_STATES = ['disponible', 'brouillon'];
 
 // Le marqueur qui dit à Cloudflare Pages de ne pas déployer un commit. Porté par la seule
@@ -55,7 +57,6 @@ const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.
 // { piece } normalisée (texte sans espaces autour, vides → null) ou { error: { status, message } }
 export function checkPieceBody(piece) {
   if (!isPlainObject(piece)) return refuse(400, 'Requête illisible : la fiche doit être un objet.');
-  if ('promoPrice' in piece) return refuse(400, 'Le prix réduit ne se saisit pas encore : il arrive avec l\'historique de prix (KD-109).');
   // Un formulaire d'avant KD-120 resté ouvert pendant le déploiement envoie encore `category`
   if ('category' in piece) return refuse(400, 'La fiche a changé : rechargez la page, puis réessayez.');
   const unknown = Object.keys(piece).find((field) => PIECE_FIELDS.indexOf(field) === -1);
@@ -92,6 +93,11 @@ export function checkPieceBody(piece) {
   if (isBlank(piece.price) || piece.price === '') out.price = null;
   else if (typeof piece.price === 'number' && isFinite(piece.price) && piece.price >= 0) out.price = piece.price;
   else return refuse(422, 'Le prix doit être un nombre positif (12.5, pas « 12,50 »).');
+
+  // Le prix réduit (KD-109) : sous le prix, règle de validateProduct ; humanCheck le dit en une phrase
+  if (isBlank(piece.promoPrice) || piece.promoPrice === '') out.promoPrice = null;
+  else if (typeof piece.promoPrice === 'number' && isFinite(piece.promoPrice) && piece.promoPrice >= 0) out.promoPrice = piece.promoPrice;
+  else return refuse(422, 'Le prix réduit doit être un nombre positif (12.5, pas « 12,50 »).');
 
   if (isBlank(piece.featured)) out.featured = false;
   else if (typeof piece.featured === 'boolean') out.featured = piece.featured;
@@ -301,9 +307,9 @@ function targetState(previous, requested) {
 }
 
 // La pièce dans l'ordre des clés du fichier. Une création prend la forme des entrées existantes
-// (promoPrice, customization, materials, dimensions, featuredOrder posés, vides) ; une
-// modification garde ce que le formulaire ne connaît pas (reservedUntil, sale, createdAt,
-// promoPrice, customization, materials, dimensions, featuredOrder) tel quel.
+// (customization, materials, dimensions, featuredOrder posés, vides) ; une modification garde ce
+// que le formulaire ne connaît pas (reservedUntil, sale, createdAt, customization, materials,
+// dimensions, featuredOrder) tel quel. L'historique de prix, lui, est écrit ici (KD-109).
 function assemble(previous, id, piece, images, availability, now) {
   const base = previous || {
     id,
@@ -315,6 +321,7 @@ function assemble(previous, id, piece, images, availability, now) {
     availability,
     price: null,
     promoPrice: null,
+    priceHistory: [],
     customization: { options: [] },
     desc: '',
     materials: [],
@@ -332,6 +339,7 @@ function assemble(previous, id, piece, images, availability, now) {
     collections: piece.collections,
     availability,
     price: piece.price,
+    promoPrice: piece.promoPrice,
     desc: piece.desc,
     images,
     featured: piece.featured,
@@ -346,12 +354,22 @@ function assemble(previous, id, piece, images, availability, now) {
   // mois naîtrait déjà vieux dans « Nouveautés ». Même règle dans withState (products.js) pour le
   // passage en vente depuis la liste. Une pièce retirée puis remise en vente garde la sienne.
   if (previous && previous.availability === 'brouillon' && availability !== 'brouillon') out.createdAt = catalog.todayInParis(now);
+  // L'historique de prix (KD-109) : vide tant que la pièce est un brouillon (son prix n'est
+  // pratiqué par personne), une première entrée le jour de la mise en vente, puis une par
+  // changement du prix pratiqué — jamais reçu du formulaire. Même règle dans withState
+  // (products.js) pour la mise en vente depuis la liste.
+  const today = catalog.todayInParis(now);
+  const wasPublished = !!previous && previous.availability !== 'brouillon';
+  if (availability === 'brouillon') out.priceHistory = [];
+  else out.priceHistory = catalog.recordPrice(wasPublished ? previous.priceHistory : [], catalog.effectivePrice(out), today);
   return out;
 }
 
 // Ce qu'il faut dire à Prescilia, en une phrase, avant la règle générale
 function humanCheck(candidate, previous) {
   const state = candidate.availability;
+  // Même en brouillon : validateProduct le refuserait avec un message technique
+  if (candidate.promoPrice !== null && (candidate.price === null || candidate.promoPrice >= candidate.price)) return 'Le prix réduit doit être inférieur au prix.';
   if (state === 'brouillon') return null;
   if (!candidate.categories.length || !candidate.audience) return 'Choisissez le type et le public de la pièce.';
   if (state === 'disponible' && (!previous || previous.availability === 'brouillon')) {
