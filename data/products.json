@@ -12,8 +12,13 @@
     ],
     "availability": "disponible",
     "price": 16,
-    "promoPrice": null,
-    "priceHistory": [],
+    "promoPrice": 12.5,
+    "priceHistory": [
+      {
+        "amount": 12.5,
+        "from": "2026-09-19"
+      }
+    ],
     "customization": {
       "options": []
     },
