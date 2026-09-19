@@ -7,7 +7,9 @@
       "boucles-oreilles"
     ],
     "audience": "mixte",
-    "collections": [],
+    "collections": [
+      "eclats-d-oreilles"
+    ],
     "availability": "disponible",
     "price": 16,
     "promoPrice": null,
