@@ -315,7 +315,8 @@ personnalisation par pièce : KD-119.
   « Brouillon, invisible » sinon, ou si elle le choisit. Une pièce publiée montre son état en lecture seule :
   réserver, vendre, retirer se font depuis la liste.
 - **Photos préparées dans le navigateur** avant l'envoi : décodées avec leur orientation EXIF, réduites à
-  1 600 px de grand côté, réencodées en WebP (JPEG si le navigateur ne sait pas encoder le WebP), puis
+  1 600 px de grand côté, réencodées en WebP (JPEG si le navigateur ne sait pas encoder le WebP — WebKit, donc
+  tout navigateur sur iPhone : une photo y pèse ~475 Ko au lieu de ~150, sous le plafond), puis
   envoyées en base64 dans le JSON. L'API les passe telles quelles à GitHub sans les décoder — encoder des octets
   en JavaScript coûte ~10 ms de CPU par Mo, la limite d'une Function sur l'offre gratuite ; JSON.parse et
   JSON.stringify sont natifs (~3-4 ms pour cinq photos de 200 Ko, mesuré). Bornes : 10 photos par pièce, 1 Mo
@@ -327,15 +328,24 @@ personnalisation par pièce : KD-119.
   `content(catalog): add "<nom>"` / `update "<nom>"` / `delete draft "<nom>"` + « via l'espace de gestion ».
   Si la branche a avancé entre la lecture et l'écriture, GitHub refuse (422, rendu 409) et la route rejoue
   une fois depuis une lecture fraîche.
-- **Un brouillon ne déploie pas** : son commit porte `[CF-Pages-Skip]`, la seule des cinq formes que
-  Cloudflare Pages reconnaît qui ne soit pas aussi lue par GitHub Actions (les autres feraient sauter le
-  garde-fou du catalogue). Pages lit le message **entier**, corps compris : un commit de **code** qui cite
-  un de ces marqueurs, même entre guillemets, n'est pas déployé non plus — arrivé sur KD-93. D'où
+- **Chaque enregistrement déploie, brouillon compris.** Un brouillon n'est nulle part sur le site, mais ses
+  photos doivent être servies pour que « Mes bijoux » et la fiche les montrent : sans déploiement, Prescilia ne
+  voyait jamais ce qu'elle venait d'enregistrer (recette du 19/09/2026 — la règle « un brouillon ne déploie
+  pas » reposait sur cette prémisse fausse). Coût : un build par enregistrement, en file s'il y en a plusieurs.
+  Seule la **suppression d'un brouillon** porte `[CF-Pages-Skip]` (rien à montrer ni à servir) — la seule des
+  cinq formes que Cloudflare Pages reconnaît qui ne soit pas aussi lue par GitHub Actions (les autres feraient
+  sauter le garde-fou du catalogue). Pages lit le message **entier**, corps compris : un commit de **code** qui
+  cite un de ces marqueurs, même entre guillemets, n'est pas déployé non plus — arrivé sur KD-93. D'où
   `githooks/commit-msg`, qui refuse tout message local qui en contient un ; les commits de l'espace de gestion
   passent par l'API GitHub et ne le rencontrent pas. Avant une fusion fast-forward sur `master`, la tête doit
-  être un commit de code : une tête « brouillon » ne reconstruirait pas la production.
+  être un commit de code : une tête « suppression de brouillon » ne reconstruirait pas la production.
+- **Une photo qui ne s'affiche pas n'est jamais une image cassée** : pendant le décodage, la case dit
+  « Préparation… » (sans `src`) ; enregistrée mais pas encore servie — le build suit le commit, 1 à 2 minutes —
+  la case de la fiche et la ligne de la liste disent « Photo en cours de mise en ligne » (sur l'événement
+  `error` de l'image). Un glyphe cassé — un « ? » sur Safari — se lisait « la photo n'a pas été prise »
+  (recette du 19/09). KD-82 rendra cette attente explicite depuis la liste.
 - **Après l'enregistrement** : retour à « Mes bijoux » sur la pièce, avec « Enregistré, mise en ligne dans 1 à
-  2 minutes » (ou « Brouillon enregistré. Il n'est pas sur le site. » — la réponse dit `deploys`). L'écran
+  2 minutes » (ou « Brouillon enregistré. Il n'est pas sur le site. » — d'après l'état enregistré). L'écran
   ne vérifie pas encore la mise en ligne : KD-82. Un refus laisse la fiche telle quelle avec la raison en tête ;
   une session Access expirée en cours de saisie met le texte de côté avant le rechargement et le restaure
   après (les photos ajoutées non, l'écran le dit) ; quitter avec des changements non enregistrés demande
@@ -398,7 +408,7 @@ ligne SumUp.
 | `GET /api/health` | preuve de vie : lit `data/products.json` sur GitHub avec le token et répond `{ ok, github, products, checkedAt }` (200) ou `{ ok: false, … }` (503). Publique, mise en cache 5 min (1 min en échec) pour ne pas consommer le quota GitHub ; `checkedAt` date la lecture GitHub réelle — deux réponses avec le même `checkedAt` viennent du cache. Ne révèle que le nombre de pièces, un état et cette date — le détail des erreurs est dans les logs Cloudflare (*Functions › Real-time logs*) |
 | `/api/admin/*` | les routes de l'espace de gestion. Derrière Cloudflare Access à la bordure (voir *Espace de gestion*), puis `functions/api/admin/_middleware.js` revérifie le jeton : **503** si les variables Access manquent, **401** sans jeton valide. Fermé par défaut, sans exception |
 | `GET /api/admin/products` | la liste des pièces lue sur GitHub, dans l'ordre d'affichage, les `collections` (le fichier tel quel) et `branch` : la branche sur laquelle ce déploiement écrirait (`master` en production, la branche de la preview sinon, `null` = écriture impossible). À vérifier avant la première bascule sur un nouvel environnement |
-| `POST /api/admin/products` | une nouvelle pièce depuis le formulaire (KD-93). Corps JSON `{ piece, photos }` : la fiche (`name`, `reference`, `category`, `audience`, `collections`, `desc`, `price`, `featured`, `images` = liste de `{ src }` (photo existante) ou `{ upload: "photo-n" }`, `availability` = `disponible` (défaut) ou `brouillon`) et les photos ajoutées en base64 (`photos["photo-n"]`, WebP ou JPEG, ≤ 1 Mo chacune, ≤ 10, ≤ 3 Mo par requête). L'`id` vient du nom (`catalog.makeId`, `-2` s'il est pris), `createdAt` du jour à Paris. **200** `{ product, commit, deploys }` · **400** corps illisible, champ inattendu (`promoPrice` : « ne se saisit pas encore », KD-109), photo citée sans contenu · **413** photo ou requête trop lourde · **415** format inconnu · **422** ce qu'elle doit corriger (nom absent, référence déjà portée par « … », mise en vente sans photo ou prix, type ou public manquant) ou la règle de `catalog.validateProduct` · **409 / 502 / 503** GitHub |
+| `POST /api/admin/products` | une nouvelle pièce depuis le formulaire (KD-93). Corps JSON `{ piece, photos }` : la fiche (`name`, `reference`, `category`, `audience`, `collections`, `desc`, `price`, `featured`, `images` = liste de `{ src }` (photo existante) ou `{ upload: "photo-n" }`, `availability` = `disponible` (défaut) ou `brouillon`) et les photos ajoutées en base64 (`photos["photo-n"]`, WebP ou JPEG, ≤ 1 Mo chacune, ≤ 10, ≤ 3 Mo par requête). L'`id` vient du nom (`catalog.makeId`, `-2` s'il est pris), `createdAt` du jour à Paris. **200** `{ product, commit, deploys: true }` (un build Pages suit chaque enregistrement, brouillon compris : ses photos doivent être servies) · **400** corps illisible, champ inattendu (`promoPrice` : « ne se saisit pas encore », KD-109), photo citée sans contenu · **413** photo ou requête trop lourde · **415** format inconnu · **422** ce qu'elle doit corriger (nom absent, référence déjà portée par « … », mise en vente sans photo ou prix, type ou public manquant) ou la règle de `catalog.validateProduct` · **409 / 502 / 503** GitHub |
 | `PUT /api/admin/products/:id` | la fiche entière d'une pièce, même corps que `POST`. L'état ne s'y change pas — sauf un brouillon qui passe en vente — (`400` sinon) ; `id`, `createdAt`, `reservedUntil`, `sale` et les champs que le formulaire ne connaît pas sont préservés. Une pièce en vente garde une photo et un prix (`422`) ; les photos retirées sont supprimées si la pièce les possède par leur nom |
 | `DELETE /api/admin/products/:id` | un brouillon jamais publié, avec ses photos, en un commit sans déploiement. **200** `{ deleted, commit, deploys: false }` · **422** pièce publiée (« se retire depuis la liste ») · **404** |
 | `PATCH /api/admin/products/:id` | corps `{ "availability": <état>, "sale"?: { amount, channel, date } }`, rien d'autre — un `reservedUntil` dans le corps est refusé (400) : la date de réservation se calcule. Les transitions sont celles de `catalog.allowedTransitions` (une publiée ne redevient pas brouillon, une réservée active ne se réserve pas à nouveau, `vendue → vendue` avec `sale` complète la vente). `reservee` écrit `reservedUntil` = jour à Paris + 13 ; quitter un état retire `reservedUntil` ou `sale`, pour que le fichier reste valide. Réécrit le fichier en **un commit** sur la branche du déploiement (auteur : l'adresse `noreply` GitHub du propriétaire du token, jamais une adresse personnelle — le dépôt est public ; message `content(catalog): mark "<nom>" as <état>` ou `record the sale of "<nom>"` + « via l'espace de gestion »). **200** `{ product, commit }` ou `{ product, unchanged: true }` · **400** corps invalide, champ inattendu, date de réservation envoyée · **404** pièce inconnue · **422** état inconnu, transition refusée, vente mal renseignée (canal, date au futur, montant négatif), pièce qui ne peut pas passer en vente ou réservée (règle de `catalog.js`) · **409** deux écritures se sont croisées deux fois de suite (une relecture + un nouvel essai, transition rejugée, sont faits avant) · **502** GitHub en erreur (401/403 = jeton expiré ?, 404 = branche disparue) · **503** environnement sans token ou sans branche connue |
@@ -466,7 +476,7 @@ retour d'information passe par les libellés de l'espace de gestion.
 |---|---|---|---|
 | Validité des données | JSON cassé, champ manquant, image introuvable | `build.js` au déploiement | e-mail Cloudflare « Deployment failed » |
 | Site vs dépôt | boutique injoignable, déploiement échoué ou jamais parti, catalogue amputé en ligne, **espace de gestion (`/admin/`, `/api/admin/`) servi sans redirection Access**, gabarit `/templates/…` servi au lieu d'un 404 | `check-site.js`, toutes les 6 h | e-mail GitHub (workflow en échec) |
-| Dépôt vs son état d'avant | catalogue qui perd anormalement des pièces alors que le build réussit | `check-catalog-drop.js`, à chaque push touchant `data/products.json` — y compris les commits de brouillon, que Cloudflare Pages ne déploie pas mais que GitHub Actions voit (voir *La fiche d'une pièce*) | e-mail GitHub (workflow en échec) |
+| Dépôt vs son état d'avant | catalogue qui perd anormalement des pièces alors que le build réussit | `check-catalog-drop.js`, à chaque push touchant `data/products.json` — y compris la suppression d'un brouillon, que Cloudflare Pages ne déploie pas mais que GitHub Actions voit (voir *La fiche d'une pièce*) | e-mail GitHub (workflow en échec) |
 
 La sonde compare le site au dépôt ; le garde-fou compare le dépôt à lui-même. Aucun des deux ne
 revalide les données : une saisie invalide est signalée par le build, tout de suite. La sonde prend
