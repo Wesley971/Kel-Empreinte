@@ -61,12 +61,16 @@ Chaque push sur `master` — y compris chaque enregistrement depuis l'espace de 
 un build puis un déploiement (~1 à 2 min). Un build en échec **laisse le dernier déploiement en
 ligne** et envoie l'e-mail de notification : rien ne casse en ligne, mais la modification n'est pas
 publiée tant que la donnée fautive n'est pas corrigée. Un seul build à la fois (plan gratuit) : des
-enregistrements rapprochés se mettent en file — l'écran de gestion l'annonce (« mise en ligne dans
-1 à 2 minutes ») sans le vérifier.
+enregistrements rapprochés se mettent en file. **L'écran de gestion observe la mise en ligne** (KD-82, voir
+*Mise en ligne observée*) : « Mise en ligne en cours… » puis « Mise en ligne terminée. », ou une alerte quand
+rien n'est en ligne au bout de 6 minutes.
 
 **Rollback** : vider la build command dans le dashboard fait retomber le site sur le HTML committé
 (périmé mais fonctionnel) ; ou redéployer une version précédente depuis la liste des déploiements
-(chaque déploiement garde une URL permanente `<hash>.kel-empreinte.pages.dev`).
+(chaque déploiement garde une URL permanente `<hash>.kel-empreinte.pages.dev`). **À savoir** : un rollback
+fait tourner une Function dont le commit est plus ancien que la tête de `master` — l'écran de gestion voit des
+commits « en attente » depuis plus de 6 minutes et **affiche l'alerte à Prescilia jusqu'au prochain
+déploiement** (KD-82) ; la prévenir, ou redéployer la tête juste après.
 
 ## Mode sombre
 
@@ -279,7 +283,7 @@ référence, type, prix (barré + promo), une **pastille d'état** qui ouvre la 
 - Écriture **optimiste, en trois temps** : la ligne prend l'état espéré et se verrouille (statut global
   « Mise à jour du site en cours » tant qu'une écriture est en vol) → la réponse confirme et la pièce
   rejoint son groupe, ou la ligne **revient en arrière** avec la raison écrite dessous → « Enregistré,
-  mise en ligne dans 1 à 2 minutes. » L'écran ne vérifie pas la mise en ligne (KD-82).
+  mise en ligne en cours… », puis la mise en ligne est observée (voir *Mise en ligne observée*).
 - Les feuilles sont des `<dialog>` collés en bas de l'écran (pouce), boutons collants quand le clavier
   réduit la hauteur ; toucher le fond ferme.
 - Session Access expirée en cours d'usage : l'API répond par une redirection, l'écran la détecte
@@ -287,6 +291,42 @@ référence, type, prix (barré + promo), une **pastille d'état** qui ouvre la 
   évite une boucle de rechargements.
 - Une connexion perdue **après** l'écriture affiche un retour en arrière alors que le dépôt a changé :
   le message invite à recharger, et le rechargement relit GitHub.
+
+### Mise en ligne observée (KD-82)
+
+L'écran ne promet plus « mise en ligne dans 1 à 2 minutes » : il regarde. **`GET /api/admin/publication`**
+compare le commit que le déploiement sert (`functions/_lib/build-info.js`, `commit` écrit par `build.js` depuis
+`CF_PAGES_COMMIT_SHA`) à la tête de la branche du déploiement (GitHub `compare`), **sans aucun jeton Cloudflare**,
+et répond `{ deployed, latest, pending: [{ sha, date }], state }` :
+
+- `pending` : les commits après le déployé qui déploient — un commit porteur d'un marqueur « ne pas déployer »
+  de Cloudflare Pages (aujourd'hui, la seule suppression d'un brouillon) n'attend rien et n'est pas compté ;
+- `state` : **`online`** (rien n'attend) · **`pending`** (le plus ancien commit en attente a moins de 6 minutes —
+  un build prend 1 à 2 min, plus une éventuelle file) · **`late`** (plus de 6 minutes, ou commit déployé absent de
+  l'historique : rollback manuel, historique réécrit — le site n'est pas à jour et ne le sera pas tout seul).
+  Jamais un 200 sans verdict : 503 hors Pages, 502/503 GitHub.
+
+Ce que fait « Mes bijoux » :
+
+- **à chaque ouverture**, et au retour sur l'onglet : un contrôle. `late` → bandeau en tête de liste, ton ambre :
+  « Tout est bien enregistré, mais le site n'est toujours pas à jour depuis 14 h 32. Prévenez Wesley, inutile de
+  ressaisir quoi que ce soit. » (le jour précède l'heure si ce n'est pas aujourd'hui) ; `pending` → « Mise en ligne
+  en cours… » ; `online` → rien. Formulation neutre : tous les commits comptent (un push de code aussi), ce qu'elle
+  doit comprendre est « le site n'est pas à jour », pas de qui vient le retard ;
+- **après un enregistrement** (bascule d'état ici, retour de la fiche — brouillon compris, ses photos arrivent
+  avec le déploiement ; pas après une suppression de brouillon ni un PATCH sans changement) : « Mise en ligne en
+  cours… » puis un sondage toutes les 20 s, jusqu'à `online` (toast « Mise en ligne terminée. », les photos
+  affichées « en cours de mise en ligne » sont rechargées avec `?v=<commit>`), `late` (le bandeau, fin du sondage)
+  ou 8 minutes ;
+- **quand la route échoue** (GitHub injoignable, jeton expiré, page Access, pas de réponse en 15 s, réponse sans
+  verdict) : **silence**. On ne sait pas, donc on n'affiche rien — « en cours » s'efface, une alerte déjà
+  constatée reste (seul un `online` la lève), le sondage s'arrête, et une session expirée ne recharge pas la page
+  (le prochain geste le fera). Un bandeau d'échec à tort serait pire que pas de bandeau.
+
+Budget GitHub : un appel par ouverture ou retour d'onglet, un par 20 s pendant au plus 8 minutes après un
+enregistrement, rien en boucle. Rien n'est persisté : le bandeau se recalcule à chaque ouverture. L'alerte
+technique (pourquoi le build a échoué) reste chez Wesley : e-mail Cloudflare « Deployment failed », sonde
+`check-site.js`.
 
 ### La fiche d'une pièce — `/admin/piece` (KD-93)
 
@@ -349,10 +389,10 @@ personnalisation par pièce : KD-119.
   « Préparation… » (sans `src`) ; enregistrée mais pas encore servie — le build suit le commit, 1 à 2 minutes —
   la case de la fiche et la ligne de la liste disent « Photo en cours de mise en ligne » (sur l'événement
   `error` de l'image). Un glyphe cassé — un « ? » sur Safari — se lisait « la photo n'a pas été prise »
-  (recette du 19/09). KD-82 rendra cette attente explicite depuis la liste.
-- **Après l'enregistrement** : retour à « Mes bijoux » sur la pièce, avec « Enregistré, mise en ligne dans 1 à
-  2 minutes » (ou « Brouillon enregistré. Il n'est pas sur le site. » — d'après l'état enregistré). L'écran
-  ne vérifie pas encore la mise en ligne : KD-82. Un refus laisse la fiche telle quelle avec la raison en tête ;
+  (recette du 19/09) ; à la mise en ligne, la liste recharge la photo (voir *Mise en ligne observée*).
+- **Après l'enregistrement** : retour à « Mes bijoux » sur la pièce, avec « Enregistré, mise en ligne en
+  cours… » (ou « Brouillon enregistré. Il n'est pas sur le site. » — d'après l'état enregistré), puis la liste
+  observe la mise en ligne jusqu'à « Mise en ligne terminée. » (voir *Mise en ligne observée*). Un refus laisse la fiche telle quelle avec la raison en tête ;
   une session Access expirée en cours de saisie met le texte de côté avant le rechargement et le restaure
   après (les photos ajoutées non, l'écran le dit) ; quitter avec des changements non enregistrés demande
   confirmation.
@@ -413,6 +453,7 @@ ligne SumUp.
 |---|---|
 | `GET /api/health` | preuve de vie : lit `data/products.json` sur GitHub avec le token et répond `{ ok, github, products, checkedAt }` (200) ou `{ ok: false, … }` (503). Publique, mise en cache 5 min (1 min en échec) pour ne pas consommer le quota GitHub ; `checkedAt` date la lecture GitHub réelle — deux réponses avec le même `checkedAt` viennent du cache. Ne révèle que le nombre de pièces, un état et cette date — le détail des erreurs est dans les logs Cloudflare (*Functions › Real-time logs*) |
 | `/api/admin/*` | les routes de l'espace de gestion. Derrière Cloudflare Access à la bordure (voir *Espace de gestion*), puis `functions/api/admin/_middleware.js` revérifie le jeton : **503** si les variables Access manquent, **401** sans jeton valide. Fermé par défaut, sans exception |
+| `GET /api/admin/publication` | ce qui est enregistré est-il en ligne ? (KD-82, voir *Mise en ligne observée*). Compare le commit servi par ce déploiement (`build-info.js`) à la tête de sa branche (GitHub `compare`), sans jeton Cloudflare. **200** `{ deployed, latest, pending: [{ sha, date }], state }` avec `state` = `online` · `pending` (plus ancien commit en attente < 6 min) · `late` ; les commits porteurs d'un marqueur « ne pas déployer » de Pages ne sont pas comptés · **503** hors Pages (pas de commit dans `build-info.js`) · **502 / 503** GitHub · **405** autre méthode. Jamais un 200 sans verdict : l'écran se tait sur toute autre réponse |
 | `GET /api/admin/products` | la liste des pièces lue sur GitHub, dans l'ordre d'affichage, les `collections` (le fichier tel quel) et `branch` : la branche sur laquelle ce déploiement écrirait (`master` en production, la branche de la preview sinon, `null` = écriture impossible). À vérifier avant la première bascule sur un nouvel environnement |
 | `POST /api/admin/products` | une nouvelle pièce depuis le formulaire (KD-93). Corps JSON `{ piece, photos }` : la fiche (`name`, `reference`, `categories` = liste de types, remise dans l'ordre du vocabulaire, `audience`, `collections`, `desc`, `price`, `featured`, `images` = liste de `{ src }` (photo existante) ou `{ upload: "photo-n" }`, `availability` = `disponible` (défaut) ou `brouillon`) et les photos ajoutées en base64 (`photos["photo-n"]`, WebP ou JPEG, ≤ 1 Mo chacune, ≤ 10, ≤ 3 Mo par requête). L'`id` vient du nom (`catalog.makeId`, `-2` s'il est pris), `createdAt` du jour à Paris. **200** `{ product, commit, deploys: true }` (un build Pages suit chaque enregistrement, brouillon compris : ses photos doivent être servies) · **400** corps illisible, champ inattendu (`promoPrice` : « ne se saisit pas encore », KD-109 ; `category` d'un formulaire d'avant KD-120 : « rechargez la page »), photo citée sans contenu · **413** photo ou requête trop lourde · **415** format inconnu · **422** ce qu'elle doit corriger (nom absent, référence déjà portée par « … », mise en vente sans photo ou prix, type ou public manquant, type inconnu ou en double) ou la règle de `catalog.validateProduct` · **409 / 502 / 503** GitHub |
 | `PUT /api/admin/products/:id` | la fiche entière d'une pièce, même corps que `POST`. L'état ne s'y change pas — sauf un brouillon qui passe en vente — (`400` sinon) ; `id`, `reservedUntil`, `sale` et les champs que le formulaire ne connaît pas sont préservés ; `createdAt` aussi, sauf pour un brouillon qui passe en vente (fixé à ce jour, voir *Modèle*). Une pièce en vente garde une photo et un prix (`422`) ; les photos retirées sont supprimées si la pièce les possède par leur nom |
