@@ -1,33 +1,5 @@
 [
   {
-    "id": "test",
-    "reference": null,
-    "name": "Test",
-    "category": "noeud-papillon",
-    "audience": "mixte",
-    "collections": [
-      "la-maison-du-noeud-pap"
-    ],
-    "availability": "disponible",
-    "price": 15,
-    "promoPrice": null,
-    "customization": {
-      "options": []
-    },
-    "desc": "Test",
-    "materials": [],
-    "dimensions": null,
-    "images": [
-      {
-        "src": "images/test-1.webp",
-        "alt": "Nœud papillon Test"
-      }
-    ],
-    "featured": false,
-    "featuredOrder": null,
-    "createdAt": "2026-09-19"
-  },
-  {
     "id": "herbier-jaune-velours",
     "reference": null,
     "name": "Herbier Jaune Velours",
