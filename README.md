@@ -22,10 +22,11 @@ encore là : les pages renvoient vers WhatsApp.
 | `shop.css` | composants du site marchand : carte d'une pièce, puces de filtre, grille, page pièce, bandes de collections, pied de page, 404 |
 | `site.js` | navigation, menu mobile, verrou de scroll, lightbox — partagé par toutes les pages |
 | `shop.js` | boutique (filtres, état dans l'URL) et page pièce (galerie) |
-| `catalog.js` | tout ce qui touche à une pièce, écrit une fois et partagé par le navigateur, le build, l'espace de gestion et les Functions : vocabulaire (états, types, publics, canaux, options de personnalisation), règle « peut passer en vente », **validation du modèle** (`validateProduct`, la règle que le formulaire, l'API et le build appliquent avec les mêmes messages), ordres d'affichage, prix et promotion, référence (unicité normalisée, propriétaire), identifiant d'une nouvelle pièce (`makeId`), `alt` des photos, liens WhatsApp, rendu des cartes |
+| `catalog.js` | tout ce qui touche à une pièce, écrit une fois et partagé par le navigateur, le build, l'espace de gestion et les Functions : vocabulaire (états, types, publics, canaux, options de personnalisation), règle « peut passer en vente », **validation du modèle** (`validateProduct`, la règle que le formulaire, l'API et le build appliquent avec les mêmes messages), ordres d'affichage, prix, **historique de prix et prix barré** (la règle des 30 jours, voir *Historique de prix*), référence (unicité normalisée, propriétaire), identifiant d'une nouvelle pièce (`makeId`), `alt` des photos, liens WhatsApp, rendu des cartes |
 | `build.js` | script de build : valide le catalogue (modèle v2, voir *Modèle*), génère l'accueil, la boutique, les pages pièce et le plan du site ; échoue si les données sont incohérentes |
 | `check-site.js` | sonde : compare le site en ligne au dépôt (voir *Surveillance*) |
 | `check-catalog-drop.js` | garde-fou : repère une chute anormale du nombre de pièces dans un push |
+| `seed-price-history.js` | amorçage de l'historique de prix des pièces reprises de WhatsApp, à lancer une fois après la saisie (voir *Historique de prix*) |
 | `.github/workflows/` | planification des deux contrôles ci-dessus (GitHub Actions) |
 | `data/products.json` | **source de vérité du catalogue**, modifiée par l'espace de gestion (`/admin/`) via les Functions, un commit par modification (voir *Modèle*) |
 | `data/collections.json` | les collections nommées (`id`, `name`, `order`, `tagline`, `cover`, `category` = le type que la collection suggère au formulaire, facultatif) : une bande par collection sur l'accueil, dans cet ordre — une collection sans pièce n'a pas de bande. Ce sont les collections du catalogue WhatsApp Business de Prescilia (KD-93). « Nouveautés » n'y est pas : elle est automatique (les 8 dernières pièces en vente) |
@@ -118,8 +119,8 @@ page d'une pièce devenue brouillon ou retirée ne survive. Le script refuse de 
 message qui nomme la pièce et le champ) si : JSON invalide ou vide, champ inconnu ou de l'ancien
 format, identifiant en double ou qui n'est pas un slug, état / type / public inconnu, référence en
 double une fois normalisée, pièce en vente ou réservée sans prix ou sans photo, pièce vendue sans
-photo, réservée sans date, vente datée dans le futur (heure de Paris), promotion supérieure au prix,
-collection inconnue, photo sans description ou fichier introuvable, marqueur absent ou en double, mode d'envoi sans prix numérique ou sans mode standard unique. Un
+photo, réservée sans date, vente datée dans le futur (heure de Paris), prix réduit supérieur ou égal au
+prix, historique de prix absent ou incohérent (voir *Historique de prix*), collection inconnue, photo sans description ou fichier introuvable, marqueur absent ou en double, mode d'envoi sans prix numérique ou sans mode standard unique. Un
 catalogue sans pièce visible **n'est pas une erreur** : les pages le disent. Le catalogue est validé
 tel qu'écrit puis rendu tel que **réglé** à l'instant du build : une réservation échue est rendue
 disponible (voir *Réservation*), et le journal le dit.
@@ -186,7 +187,8 @@ Une liste de pièces **uniques** : pas de stock ni de quantité. Les champs et l
 | `collections` | liste d'`id` de `collections.json` | facultative, plusieurs possibles |
 | `availability` | `disponible` · `reservee` · `vendue` · `brouillon` · `retiree` | **disponible** : accueil (si mise en avant) et boutique, prix et achat. **reservee** : masquée de l'accueil ; en boutique « Réservée jusqu'au … », sans bouton — **jusqu'à l'échéance seulement** : passé `reservedUntil`, la pièce redevient disponible toute seule (voir *Réservation*). **vendue** : masquée de l'accueil ; en boutique après les autres, photo estompée, « Vendue » et un lien WhatsApp « Une pièce semblable ? » ; sa page reste en ligne (un lien partagé survit à la vente). **brouillon** : jamais publiée, en cours de saisie, seul état supprimable (KD-93) — aucune action ne ramène une pièce publiée en brouillon. **retiree** : publiée puis sortie du site sans être vendue (cassée, offerte, gardée), remise en vente possible. Brouillons et retirées : nulle part sur le site, pas même une page (→ 404) |
 | `reservedUntil` | date `AAAA-MM-JJ` | obligatoire si `reservee`, interdit sinon. **Le dernier jour réservé, inclus** ; jamais saisi : l'API le calcule (jour de la réservation + 13, heure de Paris) |
-| `price`, `promoPrice` | nombres ≥ 0 · `null` | prix obligatoire pour une pièce en vente ou réservée ; `promoPrice` doit être inférieur au prix, il s'affiche alors devant le prix barré |
+| `price`, `promoPrice` | nombres ≥ 0 · `null` | prix obligatoire pour une pièce en vente ou réservée ; `promoPrice` (« Prix réduit » dans la fiche) doit être inférieur au prix et devient le **prix pratiqué**. Il ne s'affiche **barré** que si l'historique de prix démontre la référence (voir *Historique de prix*) ; sinon le prix réduit se montre seul, sans message |
+| `priceHistory` | liste `{ amount, from }` | **obligatoire, écrite par la machine** : les prix pratiqués, du plus ancien au plus récent, chaque entrée en vigueur jusqu'à la suivante. L'API l'alimente (première entrée à la première mise en vente, puis une par changement du prix pratiqué) ; vide sur un brouillon ; vide ailleurs = pratique antérieure inconnue, aucune référence. Dates `AAAA-MM-JJ` lisibles, strictement croissantes, jamais futures ; la dernière entrée est le prix pratiqué — **un prix changé par commit sans son entrée fait échouer le build**, c'est voulu. Rien n'est jamais purgé |
 | `customization` | `{ "options": [`fleurs` · `couleur` · `taille` · `forme`] }` | liste vide = non personnalisable. Jamais de prix : la page propose « Demander un devis » (WhatsApp, réponse sous 72 h) |
 | `desc`, `materials`, `dimensions` | texte · liste de textes · texte | description **sans limite**, retours à la ligne et emojis conservés (`white-space: pre-line`) |
 | `images` | liste `{ src, alt }` | la première est la vignette partout, toutes sont sur la page pièce. Photo **obligatoire** pour une pièce en vente, réservée ou vendue : l'espace de gestion refuse de mettre en vente une pièce sans photo ou sans prix (règle unique dans `catalog.js`, appliquée par l'écran, l'API et le build) |
@@ -201,8 +203,49 @@ migrer — jamais accepté en silence, ni par l'API ni par le formulaire. Un **b
 sur les types : c'est une saisie en cours.
 
 Les espaces insécables du fichier sont écrits `\u00a0` : les Functions les réécrivent tels quels
-(round-trip identique octet pour octet, couvert par un test), pour que le diff d'un commit de
-l'espace de gestion ne contienne que la modification voulue.
+(`catalog.serializeProducts`, round-trip identique octet pour octet, couvert par un test), pour que le
+diff d'un commit de l'espace de gestion ne contienne que la modification voulue.
+
+### Historique de prix et prix barré — la règle des 30 jours (KD-109)
+
+Toute annonce de réduction, un simple prix barré compris, doit indiquer **le prix le plus bas pratiqué
+au cours des 30 jours précédant la réduction** (art. L112-1-1 du code de la consommation, directive
+« Omnibus »). Le site ne peut donc barrer un prix que s'il peut le démontrer, et la démonstration est
+tenue par le code, pas par une consigne :
+
+- **La règle vit dans `catalog.js`**, appliquée à l'identique par `build.js`, le navigateur, « Mes bijoux »
+  et la fiche. `referencePrice(product)` lit `priceHistory` : la référence est le plus bas des prix en
+  vigueur pendant les 30 jours qui précèdent la date d'effet du prix actuel (le `from` de la dernière
+  entrée), celle-ci exclue — **seulement si l'historique couvre toute la fenêtre**. Une pièce mise en
+  vente hier n'a pas de référence, quel que soit son prix d'hier. `showsStrikethrough(product)` : un prix réduit
+  est posé **et** la référence lui est supérieure ; `formatOriginalPrice` affiche alors la référence,
+  pas `price`. Sinon, le prix réduit se montre seul — jamais une fausse remise par accident, jamais un
+  message d'erreur : la fiche le dit sous le champ (« Le prix barré n'apparaît en boutique que si la
+  pièce a été en vente au moins 30 jours à son prix… »), et « Mes bijoux » rend le prix comme le site.
+- **La référence est figée au début de la réduction**, jamais recalculée : un barré légitime ne
+  disparaît pas tout seul au bout de 30 jours. À chaque nouvelle baisse, la fenêtre contient la baisse
+  précédente : la référence ne peut que descendre (lecture prudente). Retirer le prix réduit, ou faire
+  du prix réduit le nouveau prix, met fin à l'annonce sans rien écrire si le prix pratiqué ne bouge pas.
+- **La machine écrit, Prescilia jamais.** `catalog.recordPrice` : rien sans prix, rien si le prix
+  pratiqué est celui de la dernière entrée, une entrée de plus sinon ; un second changement le même jour
+  remplace l'entrée du jour (et l'efface si le montant revient à celui d'avant : une correction n'est
+  pas un changement). Le jour est celui de Paris, comme `createdAt`. La preuve, c'est l'historique
+  git : chaque changement est un commit daté, rien n'est purgé (~40 octets par entrée, l'enjeu de
+  taille est nul, décision du 19/09/2026).
+- **Amorçage** : les pièces reprises du catalogue WhatsApp arrivent avec leur ancien prix (« Prix ») et
+  souvent leur prix courant (« Prix réduit ») ; l'API ne sait pas depuis quand l'ancien prix l'était.
+  Prescilia l'a confirmé par écrit le 18/09/2026 (« mars-avril 2026 ») : on retient le **1er avril 2026**.
+  **Après** la reprise (KD-44 et les ~100 pièces), jamais avant — les prix d'avant la reprise n'ont
+  jamais été pratiqués —, `node seed-price-history.js <AAAA-MM-JJ>` pose cette entrée en tête de
+  l'historique des pièces publiées créées au plus tard à la date donnée (la date est obligatoire : une
+  pièce créée après ne reçoit jamais une entrée d'avril 2026). Idempotent, résultat validé, puis le
+  script annonce ce qu'il va faire (fichier, date limite, pièces touchées) et attend « oui » — `--yes`
+  pour un lancement non interactif ; fichier intact au moindre problème ou sans confirmation ; le commit se fait à la main, puis un build suffit pour
+  que les prix barrés apparaissent. Entre la saisie et ce passage, le site montre les prix réduits
+  seuls : c'est exact. Un brouillon à la date du script n'est pas amorcé (sa référence viendra après
+  30 jours de vente).
+- **Vocabulaire** : « prix réduit » ou « nouveau prix », jamais « soldes » (mot réservé aux périodes
+  fixées par arrêté, art. L310-3 du code de commerce).
 
 ### Réservation — 14 jours fixes, heure de Paris (KD-98)
 
@@ -258,7 +301,8 @@ les règles de `catalog.js`. Il liste les pièces lues par `GET /api/admin/produ
 dépôt, pas le JSON servi avec le site qui a 1 à 2 min de retard), **groupées par état effectif** —
 En vente, Réservées, Brouillons, Vendues, Retirées (une réservation échue est « en vente », avec la
 mention « Remise en vente le … ») ; les groupes vides n'apparaissent pas. Chaque ligne : photo, nom,
-référence, type, prix (barré + promo), une **pastille d'état** qui ouvre la feuille d'actions, et
+référence, type, prix (barré + réduit selon la règle des 30 jours, comme le site), une **pastille
+d'état** qui ouvre la feuille d'actions, et
 **« Marquer vendue »** à un tap là où ça a un sens (en vente, réservée).
 
 - **Recherche** (KD-102) : un champ en tête de liste (il défile avec elle ; la zone collante reste à
@@ -342,10 +386,10 @@ photos (appareil ou galerie, plusieurs ; la première est la vignette, « Premi�
 nom (obligatoire même en brouillon : l'`id` en découle), référence (texte libre, unicité normalisée
 contrôlée en direct **et** par l'API, message qui nomme la pièce qui la porte), collections, public, types
 (cases à cocher, plusieurs pour une parure ou un combo — KD-120 ; libellés au pluriel comme les puces de la
-boutique), description (sans limite, retours à la ligne et emojis gardés jusqu'à la page pièce), prix, mise en
-avant. Pas
-de prix réduit tant que KD-109 n'existe pas : l'API refuse `promoPrice`. Matières, dimensions et
-personnalisation par pièce : KD-119.
+boutique), description (sans limite, retours à la ligne et emojis gardés jusqu'à la page pièce), prix,
+prix réduit (KD-109 : contrôlé « inférieur au prix » en direct et par l'API ; une mention permanente
+sous le champ dit que le barré n'apparaît qu'après 30 jours de vente au prix, voir *Historique de prix*),
+mise en avant. Matières, dimensions et personnalisation par pièce : KD-119.
 
 - **Les types suggérés par les collections** (`category` dans `collections.json`, aucun pour Parures : sa
   composition varie d'une parure à l'autre), avec une garde **par type** depuis KD-120 : cocher une collection
@@ -455,8 +499,8 @@ ligne SumUp.
 | `/api/admin/*` | les routes de l'espace de gestion. Derrière Cloudflare Access à la bordure (voir *Espace de gestion*), puis `functions/api/admin/_middleware.js` revérifie le jeton : **503** si les variables Access manquent, **401** sans jeton valide. Fermé par défaut, sans exception |
 | `GET /api/admin/publication` | ce qui est enregistré est-il en ligne ? (KD-82, voir *Mise en ligne observée*). Compare le commit servi par ce déploiement (`build-info.js`) à la tête de sa branche (GitHub `compare`), sans jeton Cloudflare. **200** `{ deployed, latest, pending: [{ sha, date }], state }` avec `state` = `online` · `pending` (plus ancien commit en attente < 6 min) · `late` ; les commits porteurs d'un marqueur « ne pas déployer » de Pages ne sont pas comptés · **503** hors Pages (pas de commit dans `build-info.js`) · **502 / 503** GitHub · **405** autre méthode. Jamais un 200 sans verdict : l'écran se tait sur toute autre réponse |
 | `GET /api/admin/products` | la liste des pièces lue sur GitHub, dans l'ordre d'affichage, les `collections` (le fichier tel quel) et `branch` : la branche sur laquelle ce déploiement écrirait (`master` en production, la branche de la preview sinon, `null` = écriture impossible). À vérifier avant la première bascule sur un nouvel environnement |
-| `POST /api/admin/products` | une nouvelle pièce depuis le formulaire (KD-93). Corps JSON `{ piece, photos }` : la fiche (`name`, `reference`, `categories` = liste de types, remise dans l'ordre du vocabulaire, `audience`, `collections`, `desc`, `price`, `featured`, `images` = liste de `{ src }` (photo existante) ou `{ upload: "photo-n" }`, `availability` = `disponible` (défaut) ou `brouillon`) et les photos ajoutées en base64 (`photos["photo-n"]`, WebP ou JPEG, ≤ 1 Mo chacune, ≤ 10, ≤ 3 Mo par requête). L'`id` vient du nom (`catalog.makeId`, `-2` s'il est pris), `createdAt` du jour à Paris. **200** `{ product, commit, deploys: true }` (un build Pages suit chaque enregistrement, brouillon compris : ses photos doivent être servies) · **400** corps illisible, champ inattendu (`promoPrice` : « ne se saisit pas encore », KD-109 ; `category` d'un formulaire d'avant KD-120 : « rechargez la page »), photo citée sans contenu · **413** photo ou requête trop lourde · **415** format inconnu · **422** ce qu'elle doit corriger (nom absent, référence déjà portée par « … », mise en vente sans photo ou prix, type ou public manquant, type inconnu ou en double) ou la règle de `catalog.validateProduct` · **409 / 502 / 503** GitHub |
-| `PUT /api/admin/products/:id` | la fiche entière d'une pièce, même corps que `POST`. L'état ne s'y change pas — sauf un brouillon qui passe en vente — (`400` sinon) ; `id`, `reservedUntil`, `sale` et les champs que le formulaire ne connaît pas sont préservés ; `createdAt` aussi, sauf pour un brouillon qui passe en vente (fixé à ce jour, voir *Modèle*). Une pièce en vente garde une photo et un prix (`422`) ; les photos retirées sont supprimées si la pièce les possède par leur nom |
+| `POST /api/admin/products` | une nouvelle pièce depuis le formulaire (KD-93). Corps JSON `{ piece, photos }` : la fiche (`name`, `reference`, `categories` = liste de types, remise dans l'ordre du vocabulaire, `audience`, `collections`, `desc`, `price`, `promoPrice` (le prix réduit, sous le prix — KD-109), `featured`, `images` = liste de `{ src }` (photo existante) ou `{ upload: "photo-n" }`, `availability` = `disponible` (défaut) ou `brouillon`) et les photos ajoutées en base64 (`photos["photo-n"]`, WebP ou JPEG, ≤ 1 Mo chacune, ≤ 10, ≤ 3 Mo par requête). L'`id` vient du nom (`catalog.makeId`, `-2` s'il est pris), `createdAt` du jour à Paris, `priceHistory` de la machine (vide en brouillon, une entrée sinon — voir *Historique de prix*). **200** `{ product, commit, deploys: true }` (un build Pages suit chaque enregistrement, brouillon compris : ses photos doivent être servies) · **400** corps illisible, champ inattendu (`category` d'un formulaire d'avant KD-120 : « rechargez la page »), photo citée sans contenu · **413** photo ou requête trop lourde · **415** format inconnu · **422** ce qu'elle doit corriger (nom absent, référence déjà portée par « … », mise en vente sans photo ou prix, type ou public manquant, type inconnu ou en double, prix réduit qui n'est pas sous le prix) ou la règle de `catalog.validateProduct` · **409 / 502 / 503** GitHub |
+| `PUT /api/admin/products/:id` | la fiche entière d'une pièce, même corps que `POST`. L'état ne s'y change pas — sauf un brouillon qui passe en vente — (`400` sinon) ; `id`, `reservedUntil`, `sale` et les champs que le formulaire ne connaît pas sont préservés ; `createdAt` aussi, sauf pour un brouillon qui passe en vente (fixé à ce jour, voir *Modèle*) ; `priceHistory` est mis à jour par la machine (une entrée à la mise en vente, une par changement du prix pratiqué — voir *Historique de prix*). Une pièce en vente garde une photo et un prix (`422`) ; les photos retirées sont supprimées si la pièce les possède par leur nom |
 | `DELETE /api/admin/products/:id` | un brouillon jamais publié, avec ses photos, en un commit sans déploiement. **200** `{ deleted, commit, deploys: false }` · **422** pièce publiée (« se retire depuis la liste ») · **404** |
 | `PATCH /api/admin/products/:id` | corps `{ "availability": <état>, "sale"?: { amount, channel, date } }`, rien d'autre — un `reservedUntil` dans le corps est refusé (400) : la date de réservation se calcule. Les transitions sont celles de `catalog.allowedTransitions` (une publiée ne redevient pas brouillon, une réservée active ne se réserve pas à nouveau, `vendue → vendue` avec `sale` complète la vente). `reservee` écrit `reservedUntil` = jour à Paris + 13 ; un brouillon mis en vente prend ce jour comme `createdAt` (première mise en vente) ; quitter un état retire `reservedUntil` ou `sale`, pour que le fichier reste valide. Réécrit le fichier en **un commit** sur la branche du déploiement (auteur : l'adresse `noreply` GitHub du propriétaire du token, jamais une adresse personnelle — le dépôt est public ; message `content(catalog): mark "<nom>" as <état>` ou `record the sale of "<nom>"` + « via l'espace de gestion »). **200** `{ product, commit }` ou `{ product, unchanged: true }` · **400** corps invalide, champ inattendu, date de réservation envoyée · **404** pièce inconnue · **422** état inconnu, transition refusée, vente mal renseignée (canal, date au futur, montant négatif), pièce qui ne peut pas passer en vente ou réservée (règle de `catalog.js`) · **409** deux écritures se sont croisées deux fois de suite (une relecture + un nouvel essai, transition rejugée, sont faits avant) · **502** GitHub en erreur (401/403 = jeton expiré ?, 404 = branche disparue) · **503** environnement sans token ou sans branche connue |
 | tout autre `/api/*` | 404 JSON — au lieu de la page d'accueil en 200 que Pages sert pour un chemin inconnu ; **405** avec `Allow` pour une route existante appelée avec la mauvaise méthode |
@@ -535,6 +579,7 @@ premier message est passé inaperçu ».
 node check-site.js                                  # sonde la production
 node check-site.js --url http://localhost:3000/     # sonde une copie locale ou une preview
 node check-catalog-drop.js <avant.json>             # compare data/products.json à un état précédent
+node seed-price-history.js <AAAA-MM-JJ> [--yes]     # amorce l'historique de prix, une fois, après la reprise WhatsApp (confirmation avant d'écrire)
 ```
 
 Seuils : la sonde exige que le nombre de cartes servies par `/boutique/` et son compteur soient égaux
